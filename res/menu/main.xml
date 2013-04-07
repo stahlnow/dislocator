@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/locate" android:title="Locate" android:showAsAction="always" />
+    <item android:id="@+id/walk" android:title="Start a walk" android:showAsAction="never" />
+    <item android:id="@+id/set_remote_location" android:title="Set remote location" android:showAsAction="never" />
+	<item android:id="@+id/set_remote_map" android:title="Set remote map" android:showAsAction="never">
+		<menu>
+		    <item android:id="@+id/set_remote_london" android:title="London" />
+			<item android:id="@+id/set_remote_zurich" android:title="Zurich" />
+			<item android:id="@+id/set_remote_iceland" android:title="Iceland" />
+		</menu>
+	</item>
+	<item android:id="@+id/set_local_map" android:title="Set local map" android:showAsAction="never">
+		<menu>
+		    <item android:id="@+id/set_local_london" android:title="London" />
+			<item android:id="@+id/set_local_zurich" android:title="Zurich" />
+			<item android:id="@+id/set_local_iceland" android:title="Iceland" />
+		</menu>
+	</item>
+	<item android:id="@+id/make_screenshot_png" android:title="Take a Screenshot" android:showAsAction="never"/>
+	<item android:id="@+id/set_preferences" android:title="Preferences" android:showAsAction="never"/>
+</menu>

@@ -15,3 +15,6 @@ Please see [Changelog](https://github.com/stahlnow/dislocator/wiki/Changelog) pa
 
 ***
 # Enjoy!
+
+
+![launcher](https://raw.github.com/stahlnow/dislocator/master/ic_launcher-web.png)

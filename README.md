@@ -1,5 +1,5 @@
-Dislocator
-==========
+Dislocator (pre-beta)
+=====================
 This app gives you two maps, one is showing your current location, the other the remote map of your choice. The remote map reflects your current location.
 
 ![screenshot](https://raw.github.com/stahlnow/dislocator/master/scr.png)

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:id="@+id/locate" android:title="Locate" android:showAsAction="always" />
+    <item android:id="@+id/bone" android:title="Bone" android:showAsAction="always"></item><item android:id="@+id/locate" android:title="Locate" android:showAsAction="always" />
     <item android:id="@+id/walk" android:title="Start a walk" android:showAsAction="never" />
     <item android:id="@+id/set_remote_location" android:title="Set remote location" android:showAsAction="never" />
 	<item android:id="@+id/set_remote_map" android:title="Set remote map" android:showAsAction="never">
@@ -17,6 +17,11 @@
 			<item android:id="@+id/set_local_iceland" android:title="Iceland" />
 		</menu>
 	</item>
-	<item android:id="@+id/make_screenshot_png" android:title="Take a Screenshot" android:showAsAction="never"/>
-	<item android:id="@+id/set_preferences" android:title="Preferences" android:showAsAction="never"/>
+	<item android:id="@+id/bones_list" android:title="Bones"></item>
+	
+	<item android:id="@+id/export_kml" android:title="Export KML" android:showAsAction="never"/>
+	
+	<!-- <item android:id="@+id/set_preferences" android:title="Preferences" android:showAsAction="never"/> -->
+	
+	
 </menu>

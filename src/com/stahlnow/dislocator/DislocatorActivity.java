@@ -165,8 +165,8 @@ public class DislocatorActivity extends Activity {
 		remoteMap.setLayoutParams(layoutParams);
 
 		// add both MapViews to the LinearLayout
-		linearLayout.addView(this.remoteMap);
-		linearLayout.addView(this.localMap);
+		linearLayout.addView(remoteMap);
+		linearLayout.addView(localMap);
 		
 		View zcView = LayoutInflater.from(this).inflate(R.layout.zoom_controls, null, false);
 		linearLayout.addView(zcView);
@@ -408,6 +408,7 @@ public class DislocatorActivity extends Activity {
 		case R.id.bones_list:
 			Intent i = new Intent(this, BonesListActivity.class);
 			startActivity(i);
+			return true;
 		
 		case R.id.export_kml:
 			if (Bones.exportKML()) {
@@ -472,14 +473,19 @@ public class DislocatorActivity extends Activity {
 	
 	private void onBoneAdded(boolean writeToFile, String name, String description) {
 		
+		LatLong r = null;
+		LatLong l = null;
 		
-		LatLong r = new LatLong(
-				myRemoteLocationOverlay.getLastLocation().getLatitude(),
-				myRemoteLocationOverlay.getLastLocation().getLongitude());
-		
-		LatLong l = new LatLong(
-				myLocationOverlay.getLastLocation().getLatitude(),
-				myLocationOverlay.getLastLocation().getLongitude());
+		if (myRemoteLocationOverlay.getLastLocation() != null) {
+			r = new LatLong(
+					myRemoteLocationOverlay.getLastLocation().getLatitude(),
+					myRemoteLocationOverlay.getLastLocation().getLongitude());
+		}
+		if (myLocationOverlay.getLastLocation() != null) {
+			l = new LatLong(
+					myLocationOverlay.getLastLocation().getLatitude(),
+					myLocationOverlay.getLastLocation().getLongitude());
+		}
 		
 		onBoneAdded(writeToFile, name, description, r, l);
 		
@@ -593,15 +599,18 @@ public class DislocatorActivity extends Activity {
 		LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
 		for (String provider : locationManager.getProviders(true)) {
 			Location currentLocation = locationManager.getLastKnownLocation(provider);
-			if (bestLocation == null || bestLocation.getAccuracy() > currentLocation.getAccuracy()) {
-				bestLocation = currentLocation;
+			
+			if (currentLocation != null) {
+				if (bestLocation == null || bestLocation.getAccuracy() > currentLocation.getAccuracy()) {
+					bestLocation = currentLocation;
+				}
 			}
 		}
 
 		// check if a location has been found
 		if (bestLocation != null) {
 			LatLong l = new LatLong(bestLocation.getLatitude(), bestLocation.getLongitude());
-			this.localMap.getModel().mapViewPosition.setCenter(l);
+			localMap.getModel().mapViewPosition.setCenter(l);
 			return l;
 		} else {
 			showToast("Could not get location fix...");

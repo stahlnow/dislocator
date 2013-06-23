@@ -70,7 +70,7 @@ public class AppSettings {
 	
 	public static String getLocalMap(Context context) {
 		SharedPreferences pref = context.getSharedPreferences(DISLOCATOR_PREF_NAME, 0);
-		return pref.getString(LOCAL_MAP, "zurich.map");
+		return pref.getString(LOCAL_MAP, "iceland.map");
 	}
 	
 	public static void setLocalMap(Context context, String map) {

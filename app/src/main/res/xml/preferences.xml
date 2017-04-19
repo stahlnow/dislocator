@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <CheckBoxPreference
+        android:defaultValue="true"
+        android:key="@string/pref_center_local_map"
+        android:summary="@string/pref_center_local_map_summary"
+        android:title="@string/pref_center_local_map" />
+    <CheckBoxPreference
+        android:key="@string/pref_center_remote_map"
+        android:title="@string/pref_center_remote_map"
+        android:summary="@string/pref_center_remote_map_summary"
+        android:defaultValue="true" />
+    <CheckBoxPreference
+        android:key="@string/pref_sync_zoom_level"
+        android:title="@string/pref_sync_zoom_level"
+        android:summary="@string/pref_sync_zoom_level_summary"
+        android:defaultValue="false" />
+</PreferenceScreen>

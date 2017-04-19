@@ -1,0 +1,58 @@
+<resources>
+    <string name="app_name">Dislocator</string>
+    <string name="title_activity_dislocator">Dislocator</string>
+
+    <!--    Drawer Menu    -->
+    <string name="drawer_maps">Maps</string>
+    <string name="drawer_import">Import</string>
+    <string name="drawer_export">Export</string>
+    <string name="drawer_open">Open menu</string>
+    <string name="drawer_close">Close menu</string>
+
+    <!--    Permissions    -->
+    <string name="permission_rationale_location">Access to the location service is required for the \'my location\' feature, which shows your current location on the map.</string>
+    <string name="location_permission_denied">Dislocator requires location permission to enable the \'my location\' layer. Please try again and grant access to use the location.\nIf the permission has been permanently denied, it can be enabled from the System Settings &gt; Apps &gt; \'Dislocator\'.</string>
+    <string name="permission_required_toast">Location permission is required for Dislocator to run.</string>
+
+    <!--    Preferences    -->
+    <string name="pref_sync_markers">Sync markers</string>
+    <string name="pref_sync_markers_summary">Let\'s you create/move markers on both maps synchronously.</string>
+    <string name="pref_center_remote_map">Auto-center remote map</string>
+    <string name="pref_center_remote_map_summary">The remote map is centered based on your location.</string>
+    <string name="pref_center_local_map">Auto-center local map</string>
+    <string name="pref_center_local_map_summary">The local map is centered based on your location.</string>
+    <string name="pref_sync_zoom_level">Sync zoom levels</string>
+    <string name="pref_sync_zoom_level_summary">Both maps have the same zoom level.</string>
+
+    <string name="settings">Settings</string>
+
+    <!--    Fragments      -->
+    <string name="tag_fragment_maps">TAG_FRAGMENT_MAPS</string>
+    <string name="tag_fragment_import">TAG_FRAGMENT_IMPORT</string>
+    <string name="tag_fragment_export">TAG_FRAGMENT_EXPORT</string>
+    <string name="tag_fragment_settings">TAG_FRAGMENT_SETTINGS</string>
+    <string name="menu_reference_point">Set remote location</string>
+    <string name="menu_add_marker">Add marker</string>
+
+    <!--    KEYS           -->
+    <string name="load_remote">KEY_LOAD_REMOTE</string>
+    <string name="load_local">KEY_LOAD_LOCAL</string>
+    <string name="import_to_remote_map">Import to remote map</string>
+    <string name="import_to_local_map">Import to local map</string>
+    <string name="export_remote_markers">Export remote markers</string>
+    <string name="export_local_markers">Export local markers</string>
+    <string name="export_combined_markers">Export combined markers</string>
+    <string name="file_exported_successfully">KML file has been saved to Downloads folder.</string>
+    <string name="cannot_access_external_storage">Can\'t access SD card. Allow access and try again!</string>
+    <string name="file_exported_error_no_data">Could not find marker data.</string>
+    <string name="menu_remove_remote_markers">Remove remote markers</string>
+    <string name="menu_remove_local_markers">Remove local markers</string>
+    <string name="menu_confirm">Really?</string>
+    <string name="set_reference_point">Long press on remote map to create a reference point.</string>
+    <string name="remote_ref_lat">REMOTE_REFERENCE_POINT_LATITUDE</string>
+    <string name="remote_ref_lng">REMOTE_REFERENCE_POINT_LONGITUDE</string>
+    <string name="local_ref_lat">LOCAL_REFERENCE_POINT_LATITUDE</string>
+    <string name="local_ref_lng">LOCAL_REFERENCE_POINT_LONGITUDE</string>
+
+
+</resources>

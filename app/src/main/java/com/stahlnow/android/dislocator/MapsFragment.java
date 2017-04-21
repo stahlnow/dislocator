@@ -10,6 +10,7 @@ import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
 import android.location.Location;
 import android.os.Bundle;
+import android.os.Environment;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.ActivityCompat.OnRequestPermissionsResultCallback;
@@ -45,12 +46,17 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.TileOverlay;
+import com.google.android.gms.maps.model.TileOverlayOptions;
 import com.google.maps.android.clustering.Cluster;
 import com.google.maps.android.clustering.ClusterItem;
 import com.google.maps.android.clustering.ClusterManager;
 import com.google.maps.android.clustering.view.DefaultClusterRenderer;
 import com.google.maps.android.ui.IconGenerator;
+import com.stahlnow.android.dislocator.mapbox.MapBoxOfflineTileProvider;
+import com.stahlnow.android.dislocator.mapbox.MapBoxOnlineTileProvider;
 import com.stahlnow.android.dislocator.model.Bone;
+import com.stahlnow.android.dislocator.osm.OpenStreetMapTileProvider;
 
 import org.json.JSONException;
 import org.xmlpull.v1.XmlPullParserException;
@@ -60,6 +66,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -451,6 +458,7 @@ public class MapsFragment extends Fragment
         if (mGoogleApiClient != null) {
             mGoogleApiClient.connect();
         }
+
         super.onStart();
     }
 
@@ -475,9 +483,9 @@ public class MapsFragment extends Fragment
         }
 
         // save markers files
-        File local_file = new File(DislocatorApplication.getAppContext().getFilesDir(), "local.kml");
-        File remote_file = new File(DislocatorApplication.getAppContext().getFilesDir(), "remote.kml");
-        File combined_file = new File(DislocatorApplication.getAppContext().getFilesDir(), "combined.kml");
+        File local_file = new File(DislocatorApplication.getAppContext().getFilesDir(), getResources().getString(R.string.temporary_local_file));
+        File remote_file = new File(DislocatorApplication.getAppContext().getFilesDir(), getResources().getString(R.string.temporary_remote_file));
+        File combined_file = new File(DislocatorApplication.getAppContext().getFilesDir(), getResources().getString(R.string.temporary_combined_file));
 
         Collection<Bone> all_items = null;
 
@@ -571,11 +579,16 @@ public class MapsFragment extends Fragment
         mapViewLocalFragment.getMapAsync(mapViewLocalFragment);
 
 
+        createLocationRequest();
+        startLocationUpdates();
+
+
+        /*
         if (mLocationRequest == null) { // if not created yet, create request
-            createLocationRequest();
-            startLocationUpdates();
-            mRemoteLocationSource.onResume();
+
+
         }
+        */
 
     }
 
@@ -604,7 +617,8 @@ public class MapsFragment extends Fragment
         mLocalMap = map;
         mLocalMap.getUiSettings().setMapToolbarEnabled(false);
 
-        enableMyLocationLocalMap();
+        //mLocalMap.setMapType(GoogleMap.MAP_TYPE_NONE);
+        //mLocalMap.addTileOverlay(new TileOverlayOptions().tileProvider(new CustomMapTileProvider(getResources().getAssets())));
 
         mLocalClusterManager = new ClusterManager<Bone>(DislocatorApplication.getAppContext(), mLocalMap);
 
@@ -630,28 +644,7 @@ public class MapsFragment extends Fragment
         mLocalMap.setOnMapLongClickListener(new GoogleMap.OnMapLongClickListener() {
             @Override
             public void onMapLongClick(LatLng point) {
-
                 addBone(mLocalClusterManager, point);
-
-                /*
-                if (mSharedPref.getBoolean(getString(R.string.pref_sync_markers), false)) {
-
-                    if (mLocalReferenceMarker != null) {
-
-                        double latDiff = point.latitude - mLocalReferenceMarker.getPosition().latitude;
-                        double lngDiff = point.longitude - mLocalReferenceMarker.getPosition().longitude;
-                        Marker rm = mRemoteMap.addMarker(new MarkerOptions()
-                                .position(new LatLng(
-                                        mRemoteReferenceMarker.getPosition().latitude + latDiff,
-                                        mRemoteReferenceMarker.getPosition().longitude + lngDiff))
-                                .title("a remote Marker")
-                                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))
-                                .draggable(true)
-                        );
-                    }
-                }
-                */
-
             }
         });
 
@@ -669,10 +662,8 @@ public class MapsFragment extends Fragment
                 } catch (java.lang.IllegalStateException e) {
                     Log.e(TAG, e.toString());
                 }
-
             }
         };
-
         mLocalMap.setOnCameraMoveListener(listener);
 
 
@@ -686,8 +677,10 @@ public class MapsFragment extends Fragment
             editor.commit();
 
             try {
-                AssetManager assetManager = DislocatorApplication.getAppContext().getAssets();
-                readKMLItems(assetManager.open(path), mLocalMap, mLocalClusterManager);
+                //AssetManager assetManager = DislocatorApplication.getAppContext().getAssets();
+                //readKMLItems(assetManager.open(path), mLocalMap, mLocalClusterManager);
+                File f = new File(getActivity().getFilesDir(), path);
+                readKMLItems(new FileInputStream(f), mLocalMap, mLocalClusterManager);
             } catch (FileNotFoundException e) {
                 Log.w(TAG, e.toString());
             } catch (IOException e) {
@@ -697,7 +690,7 @@ public class MapsFragment extends Fragment
             }
         } else {
             // read markers from auto-save
-            File file = new File(DislocatorApplication.getAppContext().getFilesDir(), "local.kml");
+            File file = new File(DislocatorApplication.getAppContext().getFilesDir(), getResources().getString(R.string.temporary_local_file));
             try {
                 FileInputStream fi = new FileInputStream(file);
                 try {
@@ -727,10 +720,39 @@ public class MapsFragment extends Fragment
             );
         }
 
-
         animateCameraToCluster(mLocalClusterManager, mLocalMap);
 
+        enableMyLocationLocalMap();
     }
+
+    // Storage Permissions
+    private static final int REQUEST_EXTERNAL_STORAGE = 111;
+    private static String[] PERMISSIONS_STORAGE = {
+            Manifest.permission.READ_EXTERNAL_STORAGE,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE
+    };
+
+    /**
+     * Checks if the app has permission to write to device storage
+     *
+     * If the app does not has permission then the user will be prompted to grant permissions
+     *
+     * @param activity
+     */
+    public static void verifyStoragePermissions(Activity activity) {
+        // Check if we have write permission
+        int permission = ActivityCompat.checkSelfPermission(activity, Manifest.permission.READ_EXTERNAL_STORAGE);
+
+        if (permission != PackageManager.PERMISSION_GRANTED) {
+            // We don't have permission so prompt the user
+            ActivityCompat.requestPermissions(
+                    activity,
+                    PERMISSIONS_STORAGE,
+                    REQUEST_EXTERNAL_STORAGE
+            );
+        }
+    }
+
 
     public void remoteMapReady(GoogleMap map) {
 
@@ -739,6 +761,51 @@ public class MapsFragment extends Fragment
         mRemoteMap.getUiSettings().setZoomControlsEnabled(!mSharedPref.getBoolean(getString(R.string.pref_sync_zoom_level), false));
 
         enableMyLocationRemoteMap();
+
+
+//        verifyStoragePermissions(getActivity());
+//        // Create new TileOverlayOptions instance.
+//        TileOverlayOptions opts = new TileOverlayOptions();
+//        // Get a File reference to the MBTiles file.
+//        File sdcard = Environment.getExternalStorageDirectory();
+//        //File myMBTiles = new File(sdcard,"Dislocator/maps/iceland.mbtiles");
+//
+//        String myMBTiles = sdcard.getAbsolutePath() + "/Dislocator/maps/hamburg_germany.mbtiles";
+//
+//            // Create an instance of MapBoxOfflineTileProvider.
+//            MapBoxOfflineTileProvider provider = new MapBoxOfflineTileProvider(myMBTiles);
+//            // Set the tile provider on the TileOverlayOptions.
+//            opts.tileProvider(provider);
+//            // Add the tile overlay to the map.
+//            TileOverlay overlay = mRemoteMap.addTileOverlay(opts);
+
+
+        /*
+        // Create new TileOverlayOptions instance.
+        TileOverlayOptions opts = new TileOverlayOptions();
+
+        // Find your MapBox online map ID.
+        String myMapID = "mapbox.mapbox-terrain-v2";
+
+        // Create an instance of MapBoxOnlineTileProvider.
+        MapBoxOnlineTileProvider provider = new MapBoxOnlineTileProvider(myMapID);
+
+        // Set the tile provider on the TileOverlayOptions.
+        opts.tileProvider(provider);
+
+        // Add the tile overlay to the map.
+        TileOverlay overlay = map.addTileOverlay(opts);
+        */
+
+
+        /*
+        // WORKS
+        OpenStreetMapTileProvider provider = new OpenStreetMapTileProvider();
+        TileOverlayOptions opts = new TileOverlayOptions();
+        opts.tileProvider(provider);
+        TileOverlay overlay = mRemoteMap.addTileOverlay(opts);
+        */
+
 
         mRemoteClusterManager = new ClusterManager<Bone>(DislocatorApplication.getAppContext(), mRemoteMap);
 
@@ -791,8 +858,10 @@ public class MapsFragment extends Fragment
             editor.commit();
 
             try {
-                AssetManager assetManager = DislocatorApplication.getAppContext().getAssets();
-                readKMLItems(assetManager.open(path), mRemoteMap, mRemoteClusterManager);
+                //AssetManager assetManager = DislocatorApplication.getAppContext().getAssets();
+                //readKMLItems(assetManager.open(path), mRemoteMap, mRemoteClusterManager);
+                File f = new File(getActivity().getFilesDir(), path);
+                readKMLItems(new FileInputStream(f), mRemoteMap, mRemoteClusterManager);
             } catch (FileNotFoundException e) {
                 Log.w(TAG, e.toString());
             } catch (IOException e) {
@@ -802,7 +871,7 @@ public class MapsFragment extends Fragment
             }
         } else {
             // read markers from auto-save
-            File file = new File(DislocatorApplication.getAppContext().getFilesDir(), "remote.kml");
+            File file = new File(DislocatorApplication.getAppContext().getFilesDir(), getResources().getString(R.string.temporary_remote_file));
             try {
                 FileInputStream fi = new FileInputStream(file);
                 try {
@@ -836,7 +905,6 @@ public class MapsFragment extends Fragment
             location.setLongitude(pos.longitude);
 
             mRemoteMap.setLocationSource(mRemoteLocationSource);
-            mRemoteLocationSource.mListener.onLocationChanged(location);
         }
 
 
@@ -966,8 +1034,10 @@ public class MapsFragment extends Fragment
 
 
     public void addBone(final ClusterManager manager) {
-        LatLng point = new LatLng(mLastKnownLocation.getLatitude(), mLastKnownLocation.getLongitude());
-        addBone(manager, point);
+        if (mLastKnownLocation != null) {
+            LatLng point = new LatLng(mLastKnownLocation.getLatitude(), mLastKnownLocation.getLongitude());
+            addBone(manager, point);
+        }
     }
 
     public void addBone(final ClusterManager manager, final LatLng point) {
@@ -985,6 +1055,7 @@ public class MapsFragment extends Fragment
         // set dialog message
         alertDialogBuilder
                 .setCancelable(false)
+                .setTitle(getResources().getString(R.string.dialog_add_bone))
                 .setPositiveButton("OK",
                         new DialogInterface.OnClickListener() {
                             public void onClick(DialogInterface dialog, int id) {
@@ -1050,10 +1121,13 @@ public class MapsFragment extends Fragment
     @SuppressWarnings({"MissingPermission"})
     protected void startLocationUpdates() {
         if (requestLocationPermission(1)) {
+            mRemoteLocationSource = new MapsFragment.RemoteLocationSource();
+            mRemoteLocationSource.onResume();
+
             LocationServices.FusedLocationApi.requestLocationUpdates(
                     mGoogleApiClient, mLocationRequest, this);
+
         }
-        mRemoteLocationSource = new MapsFragment.RemoteLocationSource();
     }
 
     protected void stopLocationUpdates() {
@@ -1090,7 +1164,6 @@ public class MapsFragment extends Fragment
 
             // update remote map
             if (mRemoteMap != null && mRemoteLocationSource != null && mLocalReferenceMarker != null && mRemoteReferenceMarker != null) {
-                Log.d(TAG, "onLocationCHanged");
                 double latDiff = location.getLatitude() - mLocalReferenceMarker.getPosition().latitude;
                 double lngDiff = location.getLongitude() - mLocalReferenceMarker.getPosition().longitude;
                 Location remoteLocation = new Location("Remote Fix");

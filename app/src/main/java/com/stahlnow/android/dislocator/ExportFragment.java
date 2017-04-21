@@ -1,6 +1,8 @@
 package com.stahlnow.android.dislocator;
 
 import android.Manifest;
+import android.app.Activity;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -14,6 +16,7 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.ActivityCompat.OnRequestPermissionsResultCallback;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.ContextCompat;
+import android.support.v4.content.FileProvider;
 import android.support.v7.app.AlertDialog;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -44,17 +47,17 @@ public class ExportFragment extends Fragment implements FragmentCompat.OnRequest
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd_HH:mm:ss");
         final String dateString = sdf.format(new Date());
 
-        checkPermissions(); // ask for storage permission
+        // checkPermissions(); // ask for storage permission
 
         Button btnExportLocalMarkers = (Button)v.findViewById(R.id.btn_export_local_markers);
         btnExportLocalMarkers.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (checkPermissions()) {
-                    final File file = new File(DislocatorApplication.getAppContext().getFilesDir(), "local.kml");
+                //if (checkPermissions()) {
+                    final File file = new File(getContext().getFilesDir(), getResources().getString(R.string.temporary_local_file));
                     String filename = "dislocator_local_" + dateString + ".kml";
                     exportFile(file, filename);
-                }
+                //}
             }
         });
 
@@ -62,11 +65,11 @@ public class ExportFragment extends Fragment implements FragmentCompat.OnRequest
         btnExportRemoteMarkers.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (checkPermissions()) {
-                    final File file = new File(DislocatorApplication.getAppContext().getFilesDir(), "remote.kml");
+                //if (checkPermissions()) {
+                    final File file = new File(getContext().getFilesDir(), getResources().getString(R.string.temporary_remote_file));
                     String filename = "dislocator_remote_" + dateString + ".kml";
                     exportFile(file, filename);
-                }
+                //}
             }
         });
 
@@ -74,11 +77,11 @@ public class ExportFragment extends Fragment implements FragmentCompat.OnRequest
         btnExportCombinedMarkers.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (checkPermissions()) {
-                    final File file = new File(DislocatorApplication.getAppContext().getFilesDir(), "combined.kml");
+                //if (checkPermissions()) {
+                    final File file = new File(getContext().getFilesDir(), getResources().getString(R.string.temporary_combined_file));
                     String filename = "dislocator_combined_" + dateString + ".kml";
                     exportFile(file, filename);
-                }
+                //}
             }
         });
 
@@ -96,9 +99,9 @@ public class ExportFragment extends Fragment implements FragmentCompat.OnRequest
         }
 
 
-        String root = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).toString();
-        final File dislocator_dir = new File(root + "/Dislocator");
-        if (dislocator_dir.mkdirs()) { Log.d(TAG, "created directory."); }
+        //String root = Environment.getExternalStorageDirectory().toString();
+        //final File dislocator_dir = new File(root + "/Dislocator/kml_export");
+        //if (dislocator_dir.mkdirs()) { Log.d(TAG, "created directory."); }
 
         LayoutInflater li = LayoutInflater.from(getActivity());
         View promptsView = li.inflate(R.layout.export_dialog, null);
@@ -114,10 +117,9 @@ public class ExportFragment extends Fragment implements FragmentCompat.OnRequest
                             public void onClick(DialogInterface dialog, int id) {
                                 String filename = title.getText().toString();
 
+                                /*
                                 File file = new File(dislocator_dir, filename);
-
                                 if (file.exists()) file.delete();
-
                                 // copy the file to external storage
                                 try {
                                     copyFile(tempFile, file);
@@ -126,8 +128,39 @@ public class ExportFragment extends Fragment implements FragmentCompat.OnRequest
                                     exportOnError();
                                     return;
                                 }
+                                */
 
-                                exportPostfix(file);
+                                Uri fileUri = null;
+                                File outFile = new File(getContext().getFilesDir(), filename);
+                                try {
+                                    copyFile(tempFile, outFile);
+                                } catch (IOException e) {
+                                    Log.e(TAG, e.toString());
+                                    exportOnError();
+                                    return;
+                                }
+
+
+                                try {
+                                    fileUri = FileProvider.getUriForFile(
+                                            getActivity(),
+                                            "com.stahlnow.android.dislocator.fileprovider",
+                                            outFile);
+                                } catch (IllegalArgumentException e) {
+                                    Log.e(TAG, "The file can't be shared: " +
+                                            outFile.getName());
+                                }
+
+                                if (fileUri != null) {
+                                    Intent shareIntent = new Intent();
+                                    shareIntent.setAction(Intent.ACTION_SEND);
+                                    shareIntent.putExtra(Intent.EXTRA_STREAM, fileUri);
+                                    shareIntent.setType("application/vnd.google-earth.kml+xml");
+                                    startActivity(Intent.createChooser(shareIntent, getResources().getText(R.string.send_to)));
+                                }
+
+                                // exportPostfix(fileUri);
+
 
                             }
                         })
@@ -145,14 +178,14 @@ public class ExportFragment extends Fragment implements FragmentCompat.OnRequest
         Toast.makeText(DislocatorApplication.getAppContext(), getResources().getString(R.string.file_exported_error_no_data), Toast.LENGTH_LONG).show();
     }
 
-    private void exportPostfix(File file) {
+    private void exportPostfix(Uri fileUri) {
         // let media folder know about the new file (optional)
         Intent intent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
-        intent.setData(Uri.fromFile(file));
+        intent.setData(fileUri);
         DislocatorApplication.getAppContext().sendBroadcast(intent);
 
         // show toast
-        Toast.makeText(DislocatorApplication.getAppContext(), getResources().getString(R.string.file_exported_successfully), Toast.LENGTH_LONG).show();
+        //Toast.makeText(DislocatorApplication.getAppContext(), getResources().getString(R.string.file_exported_successfully), Toast.LENGTH_LONG).show();
     }
 
     private boolean checkPermissions() {

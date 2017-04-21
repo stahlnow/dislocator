@@ -5,7 +5,7 @@
     <group >
         <item
             android:id="@+id/menu_maps"
-            android:icon="@android:drawable/ic_menu_mapmode"
+            android:icon="@mipmap/ic_launcher"
             android:title="@string/drawer_maps" />
 
         <item
@@ -20,7 +20,7 @@
 
         <item
             android:id="@+id/menu_settings"
-            android:icon="@android:drawable/ic_menu_preferences"
+            android:icon="@drawable/marker_image_150"
             android:title="@string/settings" />
     </group>
 

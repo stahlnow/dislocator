@@ -9,7 +9,7 @@
         android:key="@string/pref_center_remote_map"
         android:title="@string/pref_center_remote_map"
         android:summary="@string/pref_center_remote_map_summary"
-        android:defaultValue="true" />
+        android:defaultValue="false" />
     <CheckBoxPreference
         android:key="@string/pref_sync_zoom_level"
         android:title="@string/pref_sync_zoom_level"

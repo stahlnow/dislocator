@@ -15,8 +15,8 @@
     <string name="permission_required_toast">Location permission is required for Dislocator to run.</string>
 
     <!--    Preferences    -->
-    <string name="pref_sync_markers">Sync markers</string>
-    <string name="pref_sync_markers_summary">Let\'s you create/move markers on both maps synchronously.</string>
+    <string name="pref_sync_markers">Sync bones</string>
+    <string name="pref_sync_markers_summary">Let\'s you create/move bones on both maps synchronously.</string>
     <string name="pref_center_remote_map">Auto-center remote map</string>
     <string name="pref_center_remote_map_summary">The remote map is centered based on your location.</string>
     <string name="pref_center_local_map">Auto-center local map</string>
@@ -32,27 +32,31 @@
     <string name="tag_fragment_export">TAG_FRAGMENT_EXPORT</string>
     <string name="tag_fragment_settings">TAG_FRAGMENT_SETTINGS</string>
     <string name="menu_reference_point">Set remote location</string>
-    <string name="menu_add_marker">Add marker</string>
+    <string name="menu_add_marker">New bone</string>
 
     <!--    KEYS           -->
     <string name="load_remote">KEY_LOAD_REMOTE</string>
     <string name="load_local">KEY_LOAD_LOCAL</string>
     <string name="import_to_remote_map">Import to remote map</string>
     <string name="import_to_local_map">Import to local map</string>
-    <string name="export_remote_markers">Export remote markers</string>
-    <string name="export_local_markers">Export local markers</string>
-    <string name="export_combined_markers">Export combined markers</string>
-    <string name="file_exported_successfully">KML file has been saved to Downloads folder.</string>
+    <string name="export_remote_markers">Share remote bones</string>
+    <string name="export_local_markers">Share local bones</string>
+    <string name="export_combined_markers">Share combined bones</string>
     <string name="cannot_access_external_storage">Can\'t access SD card. Allow access and try again!</string>
-    <string name="file_exported_error_no_data">Could not find marker data.</string>
-    <string name="menu_remove_remote_markers">Remove remote markers</string>
-    <string name="menu_remove_local_markers">Remove local markers</string>
+    <string name="file_exported_error_no_data">Could not find bone data.</string>
+    <string name="menu_remove_remote_markers">Remove remote bones</string>
+    <string name="menu_remove_local_markers">Remove local bones</string>
     <string name="menu_confirm">Really?</string>
     <string name="set_reference_point">Long press on remote map to create a reference point.</string>
     <string name="remote_ref_lat">REMOTE_REFERENCE_POINT_LATITUDE</string>
     <string name="remote_ref_lng">REMOTE_REFERENCE_POINT_LONGITUDE</string>
     <string name="local_ref_lat">LOCAL_REFERENCE_POINT_LATITUDE</string>
     <string name="local_ref_lng">LOCAL_REFERENCE_POINT_LONGITUDE</string>
+    <string name="send_to">Sharing is caring!</string>
+    <string name="dialog_add_bone">New bone</string>
+    <string name="temporary_local_file">local.kml_</string>
+    <string name="temporary_remote_file">remote.kml_</string>
+    <string name="temporary_combined_file">combined.kml_</string>
 
 
 </resources>

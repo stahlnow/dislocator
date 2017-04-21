@@ -5,7 +5,7 @@
     <group >
         <item
             android:id="@+id/menu_maps"
-            android:icon="@mipmap/ic_launcher"
+            android:icon="@drawable/ic_map_white_48dp"
             android:title="@string/drawer_maps" />
 
         <item

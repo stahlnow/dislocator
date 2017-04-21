@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
     <CheckBoxPreference
-        android:defaultValue="true"
         android:key="@string/pref_center_local_map"
         android:summary="@string/pref_center_local_map_summary"
-        android:title="@string/pref_center_local_map" />
+        android:title="@string/pref_center_local_map"
+        android:defaultValue="false" />
     <CheckBoxPreference
         android:key="@string/pref_center_remote_map"
         android:title="@string/pref_center_remote_map"

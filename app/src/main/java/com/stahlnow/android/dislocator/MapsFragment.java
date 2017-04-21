@@ -720,39 +720,15 @@ public class MapsFragment extends Fragment
             );
         }
 
+        // animate camera to iceland
+        mLocalMap.animateCamera(CameraUpdateFactory.newLatLngZoom(
+                new LatLng(46.491237, 8.121843),
+                mLocalMap.getCameraPosition().zoom
+        ));
         animateCameraToCluster(mLocalClusterManager, mLocalMap);
 
         enableMyLocationLocalMap();
     }
-
-    // Storage Permissions
-    private static final int REQUEST_EXTERNAL_STORAGE = 111;
-    private static String[] PERMISSIONS_STORAGE = {
-            Manifest.permission.READ_EXTERNAL_STORAGE,
-            Manifest.permission.WRITE_EXTERNAL_STORAGE
-    };
-
-    /**
-     * Checks if the app has permission to write to device storage
-     *
-     * If the app does not has permission then the user will be prompted to grant permissions
-     *
-     * @param activity
-     */
-    public static void verifyStoragePermissions(Activity activity) {
-        // Check if we have write permission
-        int permission = ActivityCompat.checkSelfPermission(activity, Manifest.permission.READ_EXTERNAL_STORAGE);
-
-        if (permission != PackageManager.PERMISSION_GRANTED) {
-            // We don't have permission so prompt the user
-            ActivityCompat.requestPermissions(
-                    activity,
-                    PERMISSIONS_STORAGE,
-                    REQUEST_EXTERNAL_STORAGE
-            );
-        }
-    }
-
 
     public void remoteMapReady(GoogleMap map) {
 
@@ -828,16 +804,6 @@ public class MapsFragment extends Fragment
 
         //mRemoteMap.setInfoWindowAdapter(new CustomInfoWindowAdapter());
 
-
-        // re-cluster after adding items
-        mRemoteClusterManager.cluster();
-
-
-        mRemoteMap.animateCamera(CameraUpdateFactory.newLatLngZoom(
-                new LatLng(51.51699182763696, -0.06479247100651264),
-                mRemoteMap.getCameraPosition().zoom
-        ));
-
         mRemoteMapClickListener = new GoogleMap.OnMapLongClickListener() {
             @Override
             public void onMapLongClick(LatLng latLng) {
@@ -908,6 +874,12 @@ public class MapsFragment extends Fragment
         }
 
 
+        // animate camera to iceland 64°57'46.97" N  19°01'15.04" W
+        mRemoteMap.animateCamera(CameraUpdateFactory.newLatLngZoom(
+                new LatLng(64.574697, -19.011504),
+                mRemoteMap.getCameraPosition().zoom
+        ));
+        // animate to cluster (this checks if there are markers)
         animateCameraToCluster(mRemoteClusterManager, mRemoteMap);
     }
 
@@ -1242,4 +1214,5 @@ public class MapsFragment extends Fragment
     double getDouble(final SharedPreferences prefs, final String key, final double defaultValue) {
         return Double.longBitsToDouble(prefs.getLong(key, Double.doubleToLongBits(defaultValue)));
     }
+
 }

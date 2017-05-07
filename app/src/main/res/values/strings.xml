@@ -35,8 +35,8 @@
     <string name="menu_add_marker">New bone</string>
 
     <!--    KEYS           -->
-    <string name="load_remote">KEY_LOAD_REMOTE</string>
-    <string name="load_local">KEY_LOAD_LOCAL</string>
+    <string name="load_remote">DRIVE_ID_REMOTE</string>
+    <string name="load_local">DRIVE_ID_LOCAL</string>
     <string name="import_to_remote_map">Import to remote map</string>
     <string name="import_to_local_map">Import to local map</string>
     <string name="export_remote_markers">Share remote bones</string>
@@ -57,6 +57,12 @@
     <string name="temporary_local_file">local.kml_</string>
     <string name="temporary_remote_file">remote.kml_</string>
     <string name="temporary_combined_file">combined.kml_</string>
+    <string name="import_local_markers">IMPORT TO LOCAL MAP</string>
+    <string name="import_remote_markers">IMPORT TO REMOTE MAP</string>
+    <string name="cannot_open_file">File could not be opened.</string>
+    <string name="key_local_camera_position">key_local_camera_position</string>
+    <string name="key_remote_camera_position">key_remote_camera_position</string>
+    <string name="tag_fragment_streetview">tag_fragment_streetview</string>
 
 
 </resources>

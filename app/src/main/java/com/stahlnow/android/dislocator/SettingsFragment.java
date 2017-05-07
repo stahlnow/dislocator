@@ -4,8 +4,11 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.support.v7.preference.PreferenceFragmentCompat;
 import android.support.v7.preference.PreferenceManager;
+import android.util.Log;
 
 public class SettingsFragment extends PreferenceFragmentCompat {
+
+    private static final String TAG = SettingsFragment.class.getSimpleName();
 
     private SharedPreferences.OnSharedPreferenceChangeListener mOnSharedPreferenceChangeListener;
 
@@ -29,6 +32,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
 
     @Override
     public void onPause() {
+        Log.d(TAG, "onPause");
         super.onPause();
         if (mOnSharedPreferenceChangeListener != null) {
             SharedPreferences sharedPref = PreferenceManager.getDefaultSharedPreferences(getActivity());
@@ -37,6 +41,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
     }
     @Override
     public void onResume() {
+        Log.d(TAG, "onResume");
         super.onResume();
         if (mOnSharedPreferenceChangeListener != null) {
             SharedPreferences sharedPref = PreferenceManager.getDefaultSharedPreferences(getActivity());

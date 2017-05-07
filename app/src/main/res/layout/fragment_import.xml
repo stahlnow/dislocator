@@ -1,42 +1,50 @@
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="fill_parent"
-    android:layout_height="fill_parent"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
     android:orientation="vertical"
+    android:weightSum="2"
     >
 
-    <TextView
+    <Button
+        android:id="@+id/btn_import_remote_markers"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:gravity="center_horizontal"
-        android:padding="5dip"
-        android:background="@color/colorPrimaryDark"
-        android:textColor="@color/colorForeground"
-        android:text="@string/import_to_remote_map" />
+        android:text="@string/import_remote_markers" />
 
+    <Space
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight = "1" />
+
+    <!--
     <ListView
         android:id="@+id/import_remote_list"
         android:layout_width="fill_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         />
+    -->
 
 
-    <TextView
+    <Button
+        android:id="@+id/btn_import_local_markers"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dip"
-        android:padding="5dip"
-        android:background="@color/colorPrimaryDark"
-        android:textColor="@color/colorForeground"
-        android:gravity="center_horizontal"
-        android:text="@string/import_to_local_map" />
+        android:text="@string/import_local_markers" />
 
+    <Space
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight = "1" />
+
+    <!--
     <ListView
         android:id="@+id/import_local_list"
         android:layout_width="fill_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         />
+    -->
 
 </LinearLayout>

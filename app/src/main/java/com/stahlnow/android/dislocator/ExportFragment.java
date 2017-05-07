@@ -39,6 +39,11 @@ public class ExportFragment extends Fragment implements FragmentCompat.OnRequest
 
     private static final String TAG = ExportFragment.class.getSimpleName();
 
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+    }
+
     @Nullable
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {

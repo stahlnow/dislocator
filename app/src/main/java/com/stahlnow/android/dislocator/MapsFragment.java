@@ -9,13 +9,11 @@ import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
 import android.location.Location;
+import android.location.LocationManager;
 import android.os.Bundle;
-import android.os.Environment;
 import android.support.annotation.NonNull;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.app.ActivityCompat.OnRequestPermissionsResultCallback;
 import android.support.v4.app.Fragment;
-import android.support.v4.content.ContextCompat;
+import android.support.v4.app.FragmentTransaction;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.preference.PreferenceManager;
 import android.text.Html;
@@ -35,28 +33,36 @@ import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.ResultCallback;
+import com.google.android.gms.drive.Drive;
+import com.google.android.gms.drive.DriveApi;
+import com.google.android.gms.drive.DriveContents;
+import com.google.android.gms.drive.DriveFile;
+import com.google.android.gms.drive.DriveId;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.LocationSource;
+import com.google.android.gms.maps.OnStreetViewPanoramaReadyCallback;
+import com.google.android.gms.maps.StreetViewPanorama;
+import com.google.android.gms.maps.StreetViewPanoramaFragment;
+import com.google.android.gms.maps.SupportStreetViewPanoramaFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
+import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
-import com.google.android.gms.maps.model.TileOverlay;
-import com.google.android.gms.maps.model.TileOverlayOptions;
+import com.google.android.gms.maps.model.StreetViewPanoramaCamera;
 import com.google.maps.android.clustering.Cluster;
 import com.google.maps.android.clustering.ClusterItem;
 import com.google.maps.android.clustering.ClusterManager;
 import com.google.maps.android.clustering.view.DefaultClusterRenderer;
 import com.google.maps.android.ui.IconGenerator;
-import com.stahlnow.android.dislocator.mapbox.MapBoxOfflineTileProvider;
-import com.stahlnow.android.dislocator.mapbox.MapBoxOnlineTileProvider;
 import com.stahlnow.android.dislocator.model.Bone;
-import com.stahlnow.android.dislocator.osm.OpenStreetMapTileProvider;
 
 import org.json.JSONException;
 import org.xmlpull.v1.XmlPullParserException;
@@ -66,12 +72,13 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
+
+import static android.R.attr.path;
 
 
 public class MapsFragment extends Fragment
@@ -83,7 +90,9 @@ public class MapsFragment extends Fragment
         ClusterManager.OnClusterInfoWindowClickListener<Bone>,
         ClusterManager.OnClusterItemClickListener<Bone>,
         ClusterManager.OnClusterItemInfoWindowClickListener<Bone>,
-        PermissionResultListener {
+        PermissionResultListener, OnStreetViewPanoramaReadyCallback
+
+{
 
     private static final String TAG = MapsFragment.class.getSimpleName();
 
@@ -120,7 +129,12 @@ public class MapsFragment extends Fragment
     private static final String KEY_LAST_KNOWN_LOCATION = "last_known_location";
 
     private GoogleMap.OnMapLongClickListener mRemoteMapClickListener;
-
+    private LatLng mLatLngDefaultRemoteReference;
+    private boolean mLocationAccessGranted = false;
+    private CameraPosition mLocalCameraPosition = null;
+    private CameraPosition mRemoteCameraPosition = null;
+    private boolean mStreetViewActiveLocal = false;
+    private boolean mStreetViewActiveRemote = false;
 
     private class CustomInfoWindowAdapter implements GoogleMap.InfoWindowAdapter {
 
@@ -235,10 +249,10 @@ public class MapsFragment extends Fragment
                 drawable.setBounds(0, 0, width, height);
                 markerImages.add(drawable);
             }
-            MultiDrawable multiDrawable = new MultiDrawable(markerImages);
-            multiDrawable.setBounds(0, 0, width, height);
-
-            mClusterImageView.setImageDrawable(multiDrawable);
+            //MultiDrawable multiDrawable = new MultiDrawable(markerImages);
+            //multiDrawable.setBounds(0, 0, width, height);
+            //mClusterImageView.setImageDrawable(multiDrawable);
+            mClusterImageView.setImageDrawable(getResources().getDrawable(R.drawable.marker_image));
             Bitmap icon = mClusterIconGenerator.makeIcon(String.valueOf(cluster.getSize()));
             markerOptions
                     .alpha(0.9f)
@@ -254,6 +268,7 @@ public class MapsFragment extends Fragment
 
     private static class RemoteLocationSource implements LocationSource {
         public OnLocationChangedListener mListener;
+
         private boolean mPaused;
 
         @Override
@@ -277,6 +292,26 @@ public class MapsFragment extends Fragment
 
     private RemoteLocationSource mRemoteLocationSource;
 
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        Log.d(TAG, "onCreate");
+        super.onCreate(savedInstanceState);
+
+        setHasOptionsMenu(true);
+
+        mLatLngDefaultRemoteReference = new LatLng(65.3378604, -15.8508602);
+
+        // DEBUG
+//        SharedPreferences sharedPref = getActivity().getPreferences(DislocatorApplication.getAppContext().MODE_PRIVATE);
+//        SharedPreferences.Editor editor = sharedPref.edit();
+//        editor.clear();
+//        editor.commit();
+        // DEBUG
+
+        mSharedPref = PreferenceManager.getDefaultSharedPreferences(getActivity());
+
+    }
+
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -286,51 +321,48 @@ public class MapsFragment extends Fragment
         return v;
     }
 
+
     @Override
-    public void onCreate(Bundle savedInstanceState) {
+    public void onActivityCreated(Bundle savedInstanceState) {
 
-        Log.d(TAG, "onCreate");
-        super.onCreate(savedInstanceState);
-        setHasOptionsMenu(true);
-        mSharedPref = PreferenceManager.getDefaultSharedPreferences(getActivity());
+        Log.d(TAG, "onActivityCreated");
 
+        super.onActivityCreated(savedInstanceState);
 
-        // Retrieve location and camera position from saved instance state.
         if (savedInstanceState != null) {
-
-            //mLocalCameraPosition = savedInstanceState.getParcelable(KEY_LOCAL_CAMERA_POSITION);
-
-            // Update the value of mCurrentLocation from the Bundle and update the
-            // UI to show the correct latitude and longitude.
+            if (savedInstanceState.keySet().contains(KEY_LOCAL_CAMERA_POSITION)) {
+                mLocalCameraPosition = savedInstanceState.getParcelable(KEY_LOCAL_CAMERA_POSITION);
+            }
+            if (savedInstanceState.keySet().contains(KEY_REMOTE_CAMERA_POSITION)) {
+                mRemoteCameraPosition = savedInstanceState.getParcelable(KEY_REMOTE_CAMERA_POSITION);
+            }
             if (savedInstanceState.keySet().contains(KEY_LAST_KNOWN_LOCATION)) {
-                // Since KEY_LAST_KNOWN_LOCATION was found in the Bundle, we can be sure that
-                // mLastKnownLocation is not null.
                 mLastKnownLocation = savedInstanceState.getParcelable(KEY_LAST_KNOWN_LOCATION);
             }
-
-            // Update the value of mLastUpdateTime from the Bundle and update the UI.
             if (savedInstanceState.keySet().contains(KEY_LAST_UPDATE_TIME)) {
                 mLastUpdateTime = savedInstanceState.getString(
                         KEY_LAST_UPDATE_TIME);
             }
+        } else {
+            DislocatorActivity activity = (DislocatorActivity)getActivity();
+            mLocalCameraPosition = activity.mSettings.getParcelable(getString(R.string.key_local_camera_position));
+            mRemoteCameraPosition = activity.mSettings.getParcelable(getString(R.string.key_remote_camera_position));
         }
-
-    }
-
-
-    @Override
-    public void onActivityCreated(Bundle savedInstanceBundle) {
-        super.onActivityCreated(savedInstanceBundle);
 
         // Build the Play services client for use by the Fused Location Provider and the Places API.
         // Use the addApi() method to request the Google Places API and the Fused Location Provider.
         if (mGoogleApiClient == null || !mGoogleApiClient.isConnected()) {
             mGoogleApiClient = new GoogleApiClient.Builder(getContext())
                     .enableAutoManage(
-                            getActivity(), // FragmentActivity
-                            this) // OnConnectionFailedListener
+                            getActivity(),  // FragmentActivity
+                            0,              // client id
+                            this)           // OnConnectionFailedListener
                     .addConnectionCallbacks(this)
                     .addApi(LocationServices.API)
+
+                    .addApi(Drive.API)
+                    .addScope(Drive.SCOPE_FILE)
+
                     //.addApi(Places.GEO_DATA_API)
                     //.addApi(Places.PLACE_DETECTION_API)
                     .build();
@@ -360,51 +392,24 @@ public class MapsFragment extends Fragment
 
                     @Override
                     public void onMapLongClick(LatLng latLng) {
-
                         // reset to default listener
                         mRemoteMap.setOnMapLongClickListener(mRemoteMapClickListener);
 
                         if (mLastKnownLocation != null) {
-
-                            // update remote map
-                            if (mRemoteReferenceMarker != null) {
-                                mRemoteReferenceMarker.remove();
+                            createLocalReferenceMarker(new LatLng(mLastKnownLocation.getLatitude(), mLastKnownLocation.getLongitude()), true);
+                            createRemoteReferenceMarker(latLng, true);
+                            if (mRemoteLocationSource != null) {
+                                mRemoteMap.setLocationSource(mRemoteLocationSource);
+                                Location remoteLocation = new Location("Remote Fix");
+                                remoteLocation.setLatitude(latLng.latitude);
+                                remoteLocation.setLongitude(latLng.longitude);
+                                mRemoteLocationSource.mListener.onLocationChanged(remoteLocation);
                             }
-                            mRemoteReferenceMarker = mRemoteMap.addMarker(new MarkerOptions()
-                                    .position(latLng)
-                                    .title("Remote Reference Point")
-                                    .icon(BitmapDescriptorFactory.defaultMarker(4))
-                                    .draggable(false)
-                            );
-                            Location location = new Location("Remote Reference");
-                            location.setLatitude(latLng.latitude);
-                            location.setLongitude(latLng.longitude);
-
-                            mRemoteMap.setLocationSource(mRemoteLocationSource);
-                            mRemoteLocationSource.mListener.onLocationChanged(location);
-
-                            mRemoteMap.animateCamera(CameraUpdateFactory.
-                                    newLatLngZoom(latLng, mRemoteMap.getCameraPosition().zoom));
-
-                            // update local map
-                            if (mLocalReferenceMarker != null) {
-                                mLocalReferenceMarker.remove();
-                            }
-                            LatLng local = new LatLng(mLastKnownLocation.getLatitude(), mLastKnownLocation.getLongitude());
-                            mLocalReferenceMarker = mLocalMap.addMarker(new MarkerOptions()
-                                    .position(local)
-                                    .title("Local Reference Point")
-                                    .icon(BitmapDescriptorFactory.defaultMarker(4))
-                                    .draggable(false)
-                            );
-                            mLocalMap.animateCamera(CameraUpdateFactory.
-                                    newLatLngZoom(local, mLocalMap.getCameraPosition().zoom));
                         }
                         else {
                             Toast.makeText(DislocatorApplication.getAppContext(),
                                     "Can't get a location fix", Toast.LENGTH_SHORT).show();
                         }
-
                     }
 
                 });
@@ -454,33 +459,21 @@ public class MapsFragment extends Fragment
 
 
     @Override
-    public void onStart() {
-        if (mGoogleApiClient != null) {
-            mGoogleApiClient.connect();
-        }
-
-        super.onStart();
-    }
-
-    @Override
-    public void onResume() {
-        super.onResume();
-        if ((mGoogleApiClient.isConnected() || mGoogleApiClient.isConnecting())) {
-            mGoogleApiClient.connect();
-        }
-    }
-
-
-    @Override
     public void onPause() {
+
+        Log.d(TAG, "onPause");
+
         super.onPause();
-        if (mGoogleApiClient != null && mGoogleApiClient.isConnected()) {
 
-            stopLocationUpdates();
-
-            mGoogleApiClient.stopAutoManage(getActivity());
-            mGoogleApiClient.disconnect();
+        DislocatorActivity activity = (DislocatorActivity)getActivity();
+        if (mLocalMap != null && mRemoteMap != null && activity.mSettings != null) {
+            activity.mSettings.putParcelable(getString(R.string.key_local_camera_position), mLocalMap.getCameraPosition());
+            activity.mSettings.putParcelable(getString(R.string.key_remote_camera_position), mRemoteMap.getCameraPosition());
         }
+
+        // stop google services: this will disconnect and stop location updates see @onConnectionSuspended
+        if (requestLocationPermission(1000)) // hack to not disconnect on permission dialog
+            mGoogleApiClient.stopAutoManage(getActivity()); //TODO
 
         // save markers files
         File local_file = new File(DislocatorApplication.getAppContext().getFilesDir(), getResources().getString(R.string.temporary_local_file));
@@ -489,62 +482,38 @@ public class MapsFragment extends Fragment
 
         Collection<Bone> all_items = null;
 
-        try {
-            Collection<Bone> items = mLocalClusterManager.getAlgorithm().getItems();
-            all_items = mLocalClusterManager.getAlgorithm().getItems();
-            MyBoneWriter.saveKML(local_file, items, "Dislocator");
-        } catch (IOException e) {
-            Log.e(TAG, e.toString());
-        }
-
-        try {
-            Collection<Bone> items = mRemoteClusterManager.getAlgorithm().getItems();
-            if (all_items != null)
-                all_items.addAll(items);
-            else {
-                all_items = mRemoteClusterManager.getAlgorithm().getItems();
+        if (mLocalClusterManager != null) {
+            try {
+                Collection<Bone> items = mLocalClusterManager.getAlgorithm().getItems();
+                all_items = mLocalClusterManager.getAlgorithm().getItems();
+                MyBoneWriter.saveKML(local_file, items, "Dislocator");
+            } catch (IOException e) {
+                Log.e(TAG, e.toString());
             }
-            MyBoneWriter.saveKML(remote_file, items, "Dislocator");
-        } catch (IOException e) {
-            Log.e(TAG, e.toString());
         }
 
-        try {
-            MyBoneWriter.saveKML(combined_file, all_items, "Dislocator");
-        } catch (IOException e) {
-            Log.e(TAG, e.toString());
+        if (mRemoteClusterManager != null) {
+            try {
+                Collection<Bone> items = mRemoteClusterManager.getAlgorithm().getItems();
+                if (all_items != null)
+                    all_items.addAll(items);
+                else {
+                    all_items = mRemoteClusterManager.getAlgorithm().getItems();
+                }
+                MyBoneWriter.saveKML(remote_file, items, "Dislocator");
+            } catch (IOException e) {
+                Log.e(TAG, e.toString());
+            }
         }
 
-        // save reference marker
-        SharedPreferences sharedPref = getActivity().getPreferences(DislocatorApplication.getAppContext().MODE_PRIVATE);
-        SharedPreferences.Editor editor = sharedPref.edit();
-        if (mLocalReferenceMarker != null) {
-            putDouble(editor, getResources().getString(R.string.local_ref_lat), mLocalReferenceMarker.getPosition().latitude);
-            putDouble(editor, getResources().getString(R.string.local_ref_lng), mLocalReferenceMarker.getPosition().longitude);
+        if (mLocalClusterManager != null && mRemoteClusterManager != null) {
+            try {
+                MyBoneWriter.saveKML(combined_file, all_items, "Dislocator");
+            } catch (IOException e) {
+                Log.e(TAG, e.toString());
+            }
         }
-        if (mRemoteReferenceMarker != null) {
-            putDouble(editor, getResources().getString(R.string.remote_ref_lat), mRemoteReferenceMarker.getPosition().latitude);
-            putDouble(editor, getResources().getString(R.string.remote_ref_lng), mRemoteReferenceMarker.getPosition().longitude);
-        }
-        editor.commit();
-    }
 
-
-    @Override
-    public void onStop() {
-        if (mGoogleApiClient != null && mGoogleApiClient.isConnected()) {
-            mGoogleApiClient.stopAutoManage(getActivity());
-            mGoogleApiClient.disconnect();
-        }
-        super.onStop();
-    }
-
-
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
-        mGoogleApiClient.stopAutoManage(getActivity());
-        mGoogleApiClient.disconnect();
     }
 
 
@@ -553,13 +522,20 @@ public class MapsFragment extends Fragment
      */
     @Override
     public void onSaveInstanceState(Bundle outState) {
+        Log.d(TAG, "onSaveInstanceState");
+
+        super.onSaveInstanceState(outState);
+
         if (mLocalMap != null) {
             outState.putParcelable(KEY_LOCAL_CAMERA_POSITION, mLocalMap.getCameraPosition());
         }
+
+        if (mRemoteMap != null) {
+            outState.putParcelable(KEY_REMOTE_CAMERA_POSITION, mRemoteMap.getCameraPosition());
+        }
+
         outState.putParcelable(KEY_LAST_KNOWN_LOCATION, mLastKnownLocation);
         outState.putString(KEY_LAST_UPDATE_TIME, mLastUpdateTime);
-
-        super.onSaveInstanceState(outState);
     }
 
     /**
@@ -567,6 +543,7 @@ public class MapsFragment extends Fragment
      */
     @Override
     public void onConnected(Bundle connectionHint) {
+        Log.d(TAG, "onConnected");
         // Build the maps.
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         RemoteMapFragment mapViewRemoteFragment = (RemoteMapFragment) getChildFragmentManager()
@@ -577,30 +554,15 @@ public class MapsFragment extends Fragment
         LocalMapFragment mapViewLocalFragment = (LocalMapFragment) getChildFragmentManager()
                 .findFragmentById(R.id.fragment_map_local);
         mapViewLocalFragment.getMapAsync(mapViewLocalFragment);
-
-
-        createLocationRequest();
-        startLocationUpdates();
-
-
-        /*
-        if (mLocationRequest == null) { // if not created yet, create request
-
-
-        }
-        */
-
     }
 
     /**
      * Handles failure to connect to the Google Play services client.
      */
     @Override
-    public void onConnectionFailed(@NonNull ConnectionResult result) {
-        // Refer to the reference doc for ConnectionResult to see what error codes might
-        // be returned in onConnectionFailed.
-        Log.d(TAG, "Play services connection failed: ConnectionResult.getErrorCode() = "
-                + result.getErrorCode());
+    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+        Log.w(TAG, "Play services connection failed: ConnectionResult.getErrorCode() = "
+                + connectionResult.getErrorCode());
     }
 
     /**
@@ -614,11 +576,9 @@ public class MapsFragment extends Fragment
 
 
     public void localMapReady(GoogleMap map) {
+
         mLocalMap = map;
         mLocalMap.getUiSettings().setMapToolbarEnabled(false);
-
-        //mLocalMap.setMapType(GoogleMap.MAP_TYPE_NONE);
-        //mLocalMap.addTileOverlay(new TileOverlayOptions().tileProvider(new CustomMapTileProvider(getResources().getAssets())));
 
         mLocalClusterManager = new ClusterManager<Bone>(DislocatorApplication.getAppContext(), mLocalMap);
 
@@ -640,7 +600,6 @@ public class MapsFragment extends Fragment
 
         //mLocalMap.setInfoWindowAdapter(new CustomInfoWindowAdapter());
 
-
         mLocalMap.setOnMapLongClickListener(new GoogleMap.OnMapLongClickListener() {
             @Override
             public void onMapLongClick(LatLng point) {
@@ -652,6 +611,17 @@ public class MapsFragment extends Fragment
         GoogleMap.OnCameraMoveListener listener = new GoogleMap.OnCameraMoveListener() {
             @Override
             public void onCameraMove() {
+
+                CameraPosition cameraPosition = mLocalMap.getCameraPosition();
+                if (cameraPosition.zoom == mLocalMap.getMaxZoomLevel()) {
+                    enterStreetView(R.id.fragment_map_local, true);
+                } else if(cameraPosition.zoom > 18.0) {
+                    mLocalMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
+                } else {
+                    mLocalMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
+                }
+
+                // sync zoom levels
                 try {
                     Boolean syncZoomLevel = mSharedPref.getBoolean(getString(R.string.pref_sync_zoom_level), false);
                     if (syncZoomLevel) {
@@ -666,28 +636,16 @@ public class MapsFragment extends Fragment
         };
         mLocalMap.setOnCameraMoveListener(listener);
 
+        DislocatorActivity activity = (DislocatorActivity)getActivity();
 
         // check if we should load something
-        SharedPreferences sharedPref = getActivity().getPreferences(DislocatorApplication.getAppContext().MODE_PRIVATE);
-        String path = sharedPref.getString(getResources().getString(R.string.load_local), "");
-        if (path != "") {
-            // clear value
-            SharedPreferences.Editor editor = sharedPref.edit();
-            editor.putString(getResources().getString(R.string.load_local), "");
-            editor.commit();
-
-            try {
-                //AssetManager assetManager = DislocatorApplication.getAppContext().getAssets();
-                //readKMLItems(assetManager.open(path), mLocalMap, mLocalClusterManager);
-                File f = new File(getActivity().getFilesDir(), path);
-                readKMLItems(new FileInputStream(f), mLocalMap, mLocalClusterManager);
-            } catch (FileNotFoundException e) {
-                Log.w(TAG, e.toString());
-            } catch (IOException e) {
-                Log.e(TAG, e.toString());
-            } catch (XmlPullParserException e) {
-                Log.e(TAG, e.toString());
-            }
+        if (activity.driveIdLocal != null) {
+            Log.i(TAG, "Import from google drive to local map.");
+            DriveId driveId = DriveId.decodeFromString(activity.driveIdLocal);
+            DriveFile file = driveId.asDriveFile();
+            file.open(mGoogleApiClient, DriveFile.MODE_READ_ONLY, null)
+                    .setResultCallback(openLocalKml);
+            activity.driveIdLocal = null; // clear id
         } else {
             // read markers from auto-save
             File file = new File(DislocatorApplication.getAppContext().getFilesDir(), getResources().getString(R.string.temporary_local_file));
@@ -708,26 +666,92 @@ public class MapsFragment extends Fragment
 
 
         // restore reference marker
-        double refLat = getDouble(sharedPref, getResources().getString(R.string.local_ref_lat), -1000.0);
-        double refLng = getDouble(sharedPref, getResources().getString(R.string.local_ref_lng), -1000.0);
-        if (refLat != -1000.0 || refLng != -1000.0) {
-            LatLng pos = new LatLng(refLat, refLng);
-            mLocalReferenceMarker = mLocalMap.addMarker(new MarkerOptions()
-                    .position(pos)
-                    .title("Local Reference Point")
-                    .icon(BitmapDescriptorFactory.defaultMarker(4))
-                    .draggable(false)
-            );
+        LatLng loc = getLocalReferenceLatLng();
+        if (loc != null) {
+            // restore from preferences
+            createLocalReferenceMarker(loc, false);
+        } else if (mLastKnownLocation != null) {
+            createLocalReferenceMarker(new LatLng(mLastKnownLocation.getLatitude(), mLastKnownLocation.getLongitude()), true);
         }
 
-        // animate camera to iceland
-        mLocalMap.animateCamera(CameraUpdateFactory.newLatLngZoom(
-                new LatLng(46.491237, 8.121843),
-                mLocalMap.getCameraPosition().zoom
-        ));
-        animateCameraToCluster(mLocalClusterManager, mLocalMap);
 
-        enableMyLocationLocalMap();
+        // restore camera position
+        if (mLocalCameraPosition != null) {
+            mLocalMap.animateCamera(CameraUpdateFactory.newCameraPosition(mLocalCameraPosition));
+        } else {
+            // animate camera above switzerland
+            mLocalMap.animateCamera(CameraUpdateFactory.newLatLngZoom(
+                    new LatLng(46.491237, 8.121843),
+                    mLocalMap.getCameraPosition().zoom
+            ));
+        }
+
+        onMapsReady();
+    }
+
+    private void onMapsReady() {
+        if (mLocalMap == null || mRemoteMap == null)
+            return;
+
+        // ask for location access
+        if (requestLocationPermission(1000)) {
+
+            createLocationRequest();
+            startLocationUpdates();
+
+            enableMyLocationLocalMap();
+            enableMyLocationRemoteMap();
+
+        }
+
+    }
+
+    ResultCallback<DriveApi.DriveContentsResult> openLocalKml =
+            new ResultCallback<DriveApi.DriveContentsResult>() {
+                @Override
+                public void onResult(@NonNull DriveApi.DriveContentsResult driveContentsResult) {
+                    if (!driveContentsResult.getStatus().isSuccess()) {
+                        Toast.makeText(getContext(), getString(R.string.cannot_open_file), Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    DriveContents contents = driveContentsResult.getDriveContents();
+                    try {
+                        readKMLItems(contents.getInputStream(), mLocalMap, mLocalClusterManager);
+
+                        // animate camera to cluster (does nothing if empty cluster)
+                        animateCameraToCluster(mLocalClusterManager, mLocalMap);
+
+                    } catch (FileNotFoundException e) {
+                        Log.w(TAG, e.toString());
+                    } catch (IOException e) {
+                        Log.e(TAG, e.toString());
+                    } catch (XmlPullParserException e) {
+                        Log.e(TAG, e.toString());
+                    }
+                }
+            };
+
+
+
+    @Override
+    public void onStreetViewPanoramaReady(StreetViewPanorama streetViewPanorama) {
+        LatLng pos = null;
+        if (mStreetViewActiveLocal) {
+            pos = new LatLng(mLocalMap.getCameraPosition().target.latitude, mLocalMap.getCameraPosition().target.longitude);
+            // zoom back 1 level on map so buttons work correctly
+            mLocalMap.moveCamera(CameraUpdateFactory.newLatLngZoom(
+                    pos,
+                    mLocalMap.getCameraPosition().zoom - 1));
+        }
+        else {
+            pos = new LatLng(mRemoteMap.getCameraPosition().target.latitude, mRemoteMap.getCameraPosition().target.longitude);
+            // zoom back 1 level on map so buttons work correctly
+            mRemoteMap.moveCamera(CameraUpdateFactory.newLatLngZoom(
+                    pos,
+                    mRemoteMap.getCameraPosition().zoom - 1));
+        }
+
+        streetViewPanorama.setPosition(pos);
     }
 
     public void remoteMapReady(GoogleMap map) {
@@ -736,52 +760,12 @@ public class MapsFragment extends Fragment
         mRemoteMap.getUiSettings().setMapToolbarEnabled(false);
         mRemoteMap.getUiSettings().setZoomControlsEnabled(!mSharedPref.getBoolean(getString(R.string.pref_sync_zoom_level), false));
 
-        enableMyLocationRemoteMap();
 
-
-//        verifyStoragePermissions(getActivity());
-//        // Create new TileOverlayOptions instance.
-//        TileOverlayOptions opts = new TileOverlayOptions();
-//        // Get a File reference to the MBTiles file.
-//        File sdcard = Environment.getExternalStorageDirectory();
-//        //File myMBTiles = new File(sdcard,"Dislocator/maps/iceland.mbtiles");
-//
-//        String myMBTiles = sdcard.getAbsolutePath() + "/Dislocator/maps/hamburg_germany.mbtiles";
-//
-//            // Create an instance of MapBoxOfflineTileProvider.
-//            MapBoxOfflineTileProvider provider = new MapBoxOfflineTileProvider(myMBTiles);
-//            // Set the tile provider on the TileOverlayOptions.
-//            opts.tileProvider(provider);
-//            // Add the tile overlay to the map.
-//            TileOverlay overlay = mRemoteMap.addTileOverlay(opts);
-
-
-        /*
-        // Create new TileOverlayOptions instance.
-        TileOverlayOptions opts = new TileOverlayOptions();
-
-        // Find your MapBox online map ID.
-        String myMapID = "mapbox.mapbox-terrain-v2";
-
-        // Create an instance of MapBoxOnlineTileProvider.
-        MapBoxOnlineTileProvider provider = new MapBoxOnlineTileProvider(myMapID);
-
-        // Set the tile provider on the TileOverlayOptions.
-        opts.tileProvider(provider);
-
-        // Add the tile overlay to the map.
-        TileOverlay overlay = map.addTileOverlay(opts);
-        */
-
-
-        /*
         // WORKS
-        OpenStreetMapTileProvider provider = new OpenStreetMapTileProvider();
-        TileOverlayOptions opts = new TileOverlayOptions();
-        opts.tileProvider(provider);
-        TileOverlay overlay = mRemoteMap.addTileOverlay(opts);
-        */
-
+        //OpenStreetMapTileProvider provider = new OpenStreetMapTileProvider();
+        //TileOverlayOptions opts = new TileOverlayOptions();
+        //opts.tileProvider(provider);
+        //TileOverlay overlay = mRemoteMap.addTileOverlay(opts);
 
         mRemoteClusterManager = new ClusterManager<Bone>(DislocatorApplication.getAppContext(), mRemoteMap);
 
@@ -804,6 +788,22 @@ public class MapsFragment extends Fragment
 
         //mRemoteMap.setInfoWindowAdapter(new CustomInfoWindowAdapter());
 
+
+        mRemoteMap.setOnCameraMoveListener(new GoogleMap.OnCameraMoveListener() {
+            @Override
+            public void onCameraMove() {
+                CameraPosition cameraPosition = mRemoteMap.getCameraPosition();
+                if (cameraPosition.zoom == mRemoteMap.getMaxZoomLevel()) {
+                    enterStreetView(R.id.fragment_map_remote, false);
+                } else if(cameraPosition.zoom > 18.0) {
+                    mRemoteMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
+                } else {
+                    mRemoteMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
+                }
+            }
+        });
+
+
         mRemoteMapClickListener = new GoogleMap.OnMapLongClickListener() {
             @Override
             public void onMapLongClick(LatLng latLng) {
@@ -815,26 +815,16 @@ public class MapsFragment extends Fragment
 
 
         // check if we should load something
-        SharedPreferences sharedPref = getActivity().getPreferences(DislocatorApplication.getAppContext().MODE_PRIVATE);
-        String path = sharedPref.getString(getResources().getString(R.string.load_remote), "");
-        if (path != "") {
-            // clear value
-            SharedPreferences.Editor editor = sharedPref.edit();
-            editor.putString(getResources().getString(R.string.load_remote), "");
-            editor.commit();
+        DislocatorActivity activity = (DislocatorActivity)getActivity();
 
-            try {
-                //AssetManager assetManager = DislocatorApplication.getAppContext().getAssets();
-                //readKMLItems(assetManager.open(path), mRemoteMap, mRemoteClusterManager);
-                File f = new File(getActivity().getFilesDir(), path);
-                readKMLItems(new FileInputStream(f), mRemoteMap, mRemoteClusterManager);
-            } catch (FileNotFoundException e) {
-                Log.w(TAG, e.toString());
-            } catch (IOException e) {
-                Log.e(TAG, e.toString());
-            } catch (XmlPullParserException e) {
-                Log.e(TAG, e.toString());
-            }
+        // check if we should load something
+        if (activity.driveIdRemote != null) {
+            Log.i(TAG, "Import from google drive to remote map.");
+            DriveId driveId = DriveId.decodeFromString(activity.driveIdRemote);
+            DriveFile file = driveId.asDriveFile();
+            file.open(mGoogleApiClient, DriveFile.MODE_READ_ONLY, null)
+                    .setResultCallback(openRemoteKml);
+            activity.driveIdRemote = null; // clear id
         } else {
             // read markers from auto-save
             File file = new File(DislocatorApplication.getAppContext().getFilesDir(), getResources().getString(R.string.temporary_remote_file));
@@ -855,36 +845,209 @@ public class MapsFragment extends Fragment
 
 
         // restore reference marker
-        double refLat = getDouble(sharedPref, getResources().getString(R.string.remote_ref_lat), -1000.0);
-        double refLng = getDouble(sharedPref, getResources().getString(R.string.remote_ref_lng), -1000.0);
-        if (refLat != -1000.0 || refLng != -1000.0) {
-            LatLng pos = new LatLng(refLat, refLng);
-            mRemoteReferenceMarker = mRemoteMap.addMarker(new MarkerOptions()
-                    .position(pos)
-                    .title("Remote Reference Point")
-                    .icon(BitmapDescriptorFactory.defaultMarker(4))
-                    .draggable(false)
-            );
-
-            Location location = new Location("Remote Reference");
-            location.setLatitude(pos.latitude);
-            location.setLongitude(pos.longitude);
-
-            mRemoteMap.setLocationSource(mRemoteLocationSource);
+        LatLng loc = getRemoteReferenceLatLng();
+        if (loc != null) {
+            // restore from preferences
+            createRemoteReferenceMarker(loc, false);
+        } else if (mLastKnownLocation != null) {
+            // try to set default ref point
+            createRemoteReferenceMarker(mLatLngDefaultRemoteReference, true);
         }
 
 
-        // animate camera to iceland 64°57'46.97" N  19°01'15.04" W
-        mRemoteMap.animateCamera(CameraUpdateFactory.newLatLngZoom(
-                new LatLng(64.574697, -19.011504),
-                mRemoteMap.getCameraPosition().zoom
-        ));
-        // animate to cluster (this checks if there are markers)
-        animateCameraToCluster(mRemoteClusterManager, mRemoteMap);
+        // restore camera position
+        if (mRemoteCameraPosition != null) {
+            mRemoteMap.animateCamera(CameraUpdateFactory.newCameraPosition(mRemoteCameraPosition));
+        } else {
+            // animate camera above iceland 64°57'46.97" N  19°01'15.04" W
+            // before animating it later to the reference point
+            mRemoteMap.animateCamera(CameraUpdateFactory.newLatLngZoom(
+                    new LatLng(64.574697, -19.011504),
+                    mRemoteMap.getCameraPosition().zoom
+            ));
+        }
+
+        onMapsReady();
+    }
+
+    ResultCallback<DriveApi.DriveContentsResult> openRemoteKml =
+            new ResultCallback<DriveApi.DriveContentsResult>() {
+                @Override
+                public void onResult(@NonNull DriveApi.DriveContentsResult driveContentsResult) {
+                    if (!driveContentsResult.getStatus().isSuccess()) {
+                        Toast.makeText(getContext(), getString(R.string.cannot_open_file), Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    DriveContents contents = driveContentsResult.getDriveContents();
+                    try {
+                        readKMLItems(contents.getInputStream(), mRemoteMap, mRemoteClusterManager);
+
+                        // animate to cluster (this checks if there are markers)
+                        animateCameraToCluster(mRemoteClusterManager, mRemoteMap);
+
+                    } catch (FileNotFoundException e) {
+                        Log.w(TAG, e.toString());
+                    } catch (IOException e) {
+                        Log.e(TAG, e.toString());
+                    } catch (XmlPullParserException e) {
+                        Log.e(TAG, e.toString());
+                    }
+                }
+            };
+
+
+
+    private void enterStreetView(int map_fragment_id, boolean onLocalMap) {
+
+        if (mStreetViewActiveLocal || mStreetViewActiveRemote)
+            return;
+
+        mStreetViewActiveLocal = onLocalMap;
+        mStreetViewActiveRemote = !onLocalMap;
+
+        SupportStreetViewPanoramaFragment sm = SupportStreetViewPanoramaFragment.newInstance();
+        sm.getStreetViewPanoramaAsync(this);
+        FragmentTransaction transaction = getActivity().getSupportFragmentManager().beginTransaction();
+        transaction
+                .add(map_fragment_id, sm)
+                .addToBackStack(getString(R.string.tag_fragment_streetview))
+                .commit();
+
+        final Button btnExitStreetView = new Button(getContext());
+        btnExitStreetView.setText("Exit");
+        btnExitStreetView.setLayoutParams(new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        final ViewGroup layout = (ViewGroup) getActivity().findViewById(map_fragment_id);
+        layout.addView(btnExitStreetView);
+
+        btnExitStreetView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                getActivity().getSupportFragmentManager().popBackStack();
+                layout.removeView(btnExitStreetView);
+                mStreetViewActiveLocal = false;
+                mStreetViewActiveRemote = false;
+            }
+        });
+
+    }
+
+    private LatLng getLocalReferenceLatLng() {
+
+        SharedPreferences sharedPref = getActivity().getPreferences(DislocatorApplication.getAppContext().MODE_PRIVATE);
+
+        double dLocalRefLat = getDouble(sharedPref, getResources().getString(R.string.local_ref_lat), -1000.0);
+        double dLocalRefLng = getDouble(sharedPref, getResources().getString(R.string.local_ref_lng), -1000.0);
+        if (dLocalRefLat != -1000.0 || dLocalRefLng != -1000.0) {
+            return new LatLng(dLocalRefLat, dLocalRefLng);
+        }
+
+        return null;
+    }
+
+    private LatLng getRemoteReferenceLatLng() {
+
+        SharedPreferences sharedPref = getActivity().getPreferences(DislocatorApplication.getAppContext().MODE_PRIVATE);
+
+        double dRemoteRefLat = getDouble(sharedPref, getResources().getString(R.string.remote_ref_lat), -1000.0);
+        double dRemoteRefLng = getDouble(sharedPref, getResources().getString(R.string.remote_ref_lng), -1000.0);
+        if (dRemoteRefLat != -1000 || dRemoteRefLng != -1000) {
+            return new LatLng(dRemoteRefLat, dRemoteRefLng);
+        }
+
+        return null;
+    }
+
+    private void createLocalReferenceMarker(final LatLng ref, boolean animateCamera) {
+        // update local map
+        if (mLocalMap != null) {
+            if (mLocalReferenceMarker != null) {
+                mLocalReferenceMarker.remove();
+            }
+
+            if (animateCamera) {
+                mLocalMap.animateCamera(CameraUpdateFactory.
+                        newLatLngZoom(ref, mLocalMap.getCameraPosition().zoom), 1000, new GoogleMap.CancelableCallback() {
+
+                    @Override
+                    public void onFinish() {
+                        mLocalReferenceMarker = mLocalMap.addMarker(new MarkerOptions()
+                                .position(ref)
+                                .title("Local Reference Point")
+                                .icon(BitmapDescriptorFactory.defaultMarker(4))
+                                .draggable(false)
+                        );
+                        mLocalReferenceMarker.showInfoWindow();
+                    }
+                    @Override
+                    public void onCancel() {
+                    }
+                });
+
+            } else {
+                mLocalReferenceMarker = mLocalMap.addMarker(new MarkerOptions()
+                        .position(ref)
+                        .title("Local Reference Point")
+                        .icon(BitmapDescriptorFactory.defaultMarker(4))
+                        .draggable(false)
+                );
+            }
+
+            // save reference marker
+            SharedPreferences sharedPref = getActivity().getPreferences(DislocatorApplication.getAppContext().MODE_PRIVATE);
+            SharedPreferences.Editor editor = sharedPref.edit();
+            putDouble(editor, getResources().getString(R.string.local_ref_lat), ref.latitude);
+            putDouble(editor, getResources().getString(R.string.local_ref_lng), ref.longitude);
+            editor.commit();
+        }
+
+    }
+
+    private void createRemoteReferenceMarker(final LatLng ref, boolean animateCamera) {
+        // update remote map
+        if (mRemoteMap != null) {
+            if (mRemoteReferenceMarker != null) {
+                mRemoteReferenceMarker.remove();
+            }
+
+            if (animateCamera) {
+                mRemoteMap.animateCamera(CameraUpdateFactory.
+                        newLatLngZoom(ref, mRemoteMap.getCameraPosition().zoom), 1000, new GoogleMap.CancelableCallback() {
+                    @Override
+                    public void onFinish() {
+                        mRemoteReferenceMarker = mRemoteMap.addMarker(new MarkerOptions()
+                                .position(ref)
+                                .title("Remote Reference Point")
+                                .icon(BitmapDescriptorFactory.defaultMarker(4))
+                                .draggable(false)
+                        );
+                        mRemoteReferenceMarker.showInfoWindow();
+                    }
+                    @Override
+                    public void onCancel() {}
+                });
+            } else {
+                mRemoteReferenceMarker = mRemoteMap.addMarker(new MarkerOptions()
+                        .position(ref)
+                        .title("Remote Reference Point")
+                        .icon(BitmapDescriptorFactory.defaultMarker(4))
+                        .draggable(false)
+                );
+            }
+
+            // save reference marker
+            SharedPreferences sharedPref = getActivity().getPreferences(DislocatorApplication.getAppContext().MODE_PRIVATE);
+            SharedPreferences.Editor editor = sharedPref.edit();
+            putDouble(editor, getResources().getString(R.string.remote_ref_lat), ref.latitude);
+            putDouble(editor, getResources().getString(R.string.remote_ref_lng), ref.longitude);
+            editor.commit();
+        }
     }
 
 
-    private void animateCameraToCluster(ClusterManager<Bone> manager, GoogleMap map) {
+    private void animateCameraToCluster(ClusterManager<Bone> manager, final GoogleMap map) {
 
         if (manager.getAlgorithm().getItems().size() == 0)
             return;
@@ -899,7 +1062,21 @@ public class MapsFragment extends Fragment
 
         // Animate camera to the bounds
         try {
-            map.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 100));
+            map.animateCamera(
+                    CameraUpdateFactory.newLatLngBounds(bounds, 100),
+                    new GoogleMap.CancelableCallback() {
+                        @Override
+                        public void onFinish() {
+                            // zoome out a little again after the bounds
+                            map.animateCamera(CameraUpdateFactory.newLatLngZoom(
+                                    bounds.getCenter(), map.getCameraPosition().zoom - 2
+                            ));
+                        }
+                        @Override
+                        public void onCancel() {
+                        }
+                    });
+
         } catch (Exception e) {
             Log.e(TAG, e.toString());
         }
@@ -988,17 +1165,8 @@ public class MapsFragment extends Fragment
                     mLocalClusterManager.cluster();
                     alertDialog.dismiss();
                 } catch (Exception e) {
-
+                    Log.e(TAG, e.toString());
                 }
-
-                try {
-                    mRemoteClusterManager.removeItem(item);
-                    mRemoteClusterManager.cluster();
-                    alertDialog.dismiss();
-                } catch (Exception e) {
-
-                }
-
             }
         });
 
@@ -1084,6 +1252,8 @@ public class MapsFragment extends Fragment
      *
      *******************************************************************************************/
     protected void createLocationRequest() {
+        Log.d(TAG, "createLocationRequest");
+
         mLocationRequest = new LocationRequest();
         mLocationRequest.setInterval(10000);
         mLocationRequest.setFastestInterval(5000);
@@ -1092,9 +1262,15 @@ public class MapsFragment extends Fragment
 
     @SuppressWarnings({"MissingPermission"})
     protected void startLocationUpdates() {
-        if (requestLocationPermission(1)) {
+        if (mLocationAccessGranted) {
+            Log.d(TAG, "startLocationUpdates");
             mRemoteLocationSource = new MapsFragment.RemoteLocationSource();
             mRemoteLocationSource.onResume();
+
+            if (mLocalMap != null && !mLocalMap.isMyLocationEnabled())
+                enableMyLocationLocalMap();
+            if (mRemoteMap != null && !mRemoteMap.isMyLocationEnabled())
+                enableMyLocationRemoteMap();
 
             LocationServices.FusedLocationApi.requestLocationUpdates(
                     mGoogleApiClient, mLocationRequest, this);
@@ -1103,8 +1279,7 @@ public class MapsFragment extends Fragment
     }
 
     protected void stopLocationUpdates() {
-        LocationServices.FusedLocationApi.removeLocationUpdates(
-                mGoogleApiClient, this);
+        LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, this);
 
         if (mRemoteLocationSource != null)
             mRemoteLocationSource.onPause();
@@ -1122,28 +1297,59 @@ public class MapsFragment extends Fragment
     public void onLocationChanged(Location location) {
 
         mLastKnownLocation = location; // this maybe null in rare cases when a location is not available
+        LatLng latLngLocal = new LatLng(location.getLatitude(), location.getLongitude());
         mLastUpdateTime = DateFormat.getTimeInstance().format(new Date());
 
         if (mLastKnownLocation != null) {
             Log.v(TAG, "onLocationChanged: " + location.toString());
+
             // update local map
-            if (mLocalMap != null && mSharedPref.getBoolean(getString(R.string.pref_center_local_map), true)) {
-                mLocalMap.animateCamera(CameraUpdateFactory.
-                        newLatLngZoom(
-                                new LatLng(location.getLatitude(), location.getLongitude()),
-                                mLocalMap.getCameraPosition().zoom));
+            if (mLocalMap != null) {
+
+                if (!mLocalMap.isMyLocationEnabled()) {
+                    enableMyLocationLocalMap();
+                }
+
+                // check if we need to create the default reference point (if user did not set one yet)
+                if (getLocalReferenceLatLng() == null) {
+                    createLocalReferenceMarker(latLngLocal, true);
+                }
+
+                // check if we should auto center
+                else if (mSharedPref.getBoolean(getString(R.string.pref_center_local_map), false)) {
+                    mLocalMap.animateCamera(CameraUpdateFactory.
+                            newLatLngZoom(
+                                    new LatLng(location.getLatitude(), location.getLongitude()),
+                                    mLocalMap.getCameraPosition().zoom));
+                }
+            }
+
+
+            if (mRemoteMap != null) {
+                // check if we need to create the default reference point (if user did not set one yet)
+                if (getRemoteReferenceLatLng() == null) {
+                    createRemoteReferenceMarker(mLatLngDefaultRemoteReference, true);
+                }
             }
 
             // update remote map
             if (mRemoteMap != null && mRemoteLocationSource != null && mLocalReferenceMarker != null && mRemoteReferenceMarker != null) {
+
+                if (!mRemoteMap.isMyLocationEnabled()) {
+                    enableMyLocationRemoteMap();
+                }
+
+                mRemoteMap.setLocationSource(mRemoteLocationSource);
                 double latDiff = location.getLatitude() - mLocalReferenceMarker.getPosition().latitude;
                 double lngDiff = location.getLongitude() - mLocalReferenceMarker.getPosition().longitude;
                 Location remoteLocation = new Location("Remote Fix");
                 remoteLocation.setLatitude(mRemoteReferenceMarker.getPosition().latitude + latDiff);
                 remoteLocation.setLongitude(mRemoteReferenceMarker.getPosition().longitude + lngDiff);
-                mRemoteLocationSource.mListener.onLocationChanged(remoteLocation);
+                if (mRemoteLocationSource.mListener != null)
+                    mRemoteLocationSource.mListener.onLocationChanged(remoteLocation);
 
-                if (mRemoteMap != null && mSharedPref.getBoolean(getString(R.string.pref_center_remote_map), true)) {
+                // check if we should auto center
+                if (mSharedPref.getBoolean(getString(R.string.pref_center_remote_map), true)) {
                     mRemoteMap.animateCamera(CameraUpdateFactory.
                             newLatLngZoom(
                                     new LatLng(remoteLocation.getLatitude(), remoteLocation.getLongitude()),
@@ -1157,7 +1363,9 @@ public class MapsFragment extends Fragment
 
     @SuppressWarnings({"MissingPermission"})
     private void enableMyLocationLocalMap() {
-        if (requestLocationPermission(1) && mLocalMap != null) {
+
+        if (mLocationAccessGranted && mLocalMap != null) {
+            Log.d(TAG, "enableMyLocationLocalMap");
             mLocalMap.setMyLocationEnabled(true);
             mLocalMap.setOnMyLocationButtonClickListener(this);
         }
@@ -1165,7 +1373,8 @@ public class MapsFragment extends Fragment
 
     @SuppressWarnings({"MissingPermission"})
     private void enableMyLocationRemoteMap() {
-        if (requestLocationPermission(2) && mRemoteMap != null) {
+        if (mLocationAccessGranted && mRemoteMap != null) {
+            Log.d(TAG, "enableMyLocationRemoteMap");
             mRemoteMap.setMyLocationEnabled(true);
             mRemoteMap.setOnMyLocationButtonClickListener(this);
         }
@@ -1180,7 +1389,8 @@ public class MapsFragment extends Fragment
             mainActivity.setPermissionResultListener(this);
 
             // returns true if we have access
-            return mainActivity.requestPermission(Manifest.permission.ACCESS_FINE_LOCATION, requestCode);
+            mLocationAccessGranted = mainActivity.requestPermission(Manifest.permission.ACCESS_FINE_LOCATION, requestCode);
+            return mLocationAccessGranted;
 
         }
         return false;
@@ -1190,6 +1400,15 @@ public class MapsFragment extends Fragment
     @Override
     public void onPermissionResult(int requestCode, String[] permissions, int[] grantResults) {
 
+        if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            Log.d(TAG, "onPermissionResult");
+
+            mLocationAccessGranted = true;
+            onMapsReady();
+
+        }
+
+        /*
         switch (requestCode) {
             case 1: { // local map
                 // If request is cancelled, the result arrays are empty.
@@ -1203,6 +1422,7 @@ public class MapsFragment extends Fragment
                 }
             }
         }
+        */
 
     }
 

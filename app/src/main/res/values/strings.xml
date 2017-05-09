@@ -63,6 +63,11 @@
     <string name="key_local_camera_position">key_local_camera_position</string>
     <string name="key_remote_camera_position">key_remote_camera_position</string>
     <string name="tag_fragment_streetview">tag_fragment_streetview</string>
+    <string name="menu_search_remote_map">Search remote map</string>
+    <string name="menu_search_local_map">Search local map</string>
 
+    <string name="legal_notices">Legal Notices</string>
+    <string name="button_close">Close</string>
+    <string name="tag_fragment_google_license_dialog">tag_fragment_google_license_dialog</string>
 
 </resources>

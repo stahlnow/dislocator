@@ -16,6 +16,7 @@ import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.preference.PreferenceManager;
+import android.support.v7.widget.CardView;
 import android.text.Html;
 import android.text.SpannableString;
 import android.util.Log;
@@ -34,6 +35,7 @@ import android.widget.Toast;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.ResultCallback;
+import com.google.android.gms.common.api.Status;
 import com.google.android.gms.drive.Drive;
 import com.google.android.gms.drive.DriveApi;
 import com.google.android.gms.drive.DriveContents;
@@ -42,6 +44,11 @@ import com.google.android.gms.drive.DriveId;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.places.Place;
+import com.google.android.gms.location.places.Places;
+import com.google.android.gms.location.places.ui.PlaceAutocompleteFragment;
+import com.google.android.gms.location.places.ui.PlaceSelectionListener;
+import com.google.android.gms.location.places.ui.SupportPlaceAutocompleteFragment;
 import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -135,6 +142,9 @@ public class MapsFragment extends Fragment
     private CameraPosition mRemoteCameraPosition = null;
     private boolean mStreetViewActiveLocal = false;
     private boolean mStreetViewActiveRemote = false;
+    private SupportPlaceAutocompleteFragment mSearchFragment;
+    private CardView mSearchWrapperView;
+    private boolean mSearchOnLocalMap = false;
 
     private class CustomInfoWindowAdapter implements GoogleMap.InfoWindowAdapter {
 
@@ -299,7 +309,8 @@ public class MapsFragment extends Fragment
 
         setHasOptionsMenu(true);
 
-        mLatLngDefaultRemoteReference = new LatLng(65.3378604, -15.8508602);
+        // 65.337512 -15.852263
+        mLatLngDefaultRemoteReference = new LatLng(65.337512, -15.852263);
 
         // DEBUG
 //        SharedPreferences sharedPref = getActivity().getPreferences(DislocatorApplication.getAppContext().MODE_PRIVATE);
@@ -360,11 +371,15 @@ public class MapsFragment extends Fragment
                     .addConnectionCallbacks(this)
                     .addApi(LocationServices.API)
 
+                    // enable search
+                    .addApi(Places.GEO_DATA_API)
+                    .addApi(Places.PLACE_DETECTION_API)
+
+                    // enable drive
                     .addApi(Drive.API)
                     .addScope(Drive.SCOPE_FILE)
 
-                    //.addApi(Places.GEO_DATA_API)
-                    //.addApi(Places.PLACE_DETECTION_API)
+
                     .build();
         }
     }
@@ -450,6 +465,24 @@ public class MapsFragment extends Fragment
                             .create()
                             .show();
                 }
+                return true;
+
+            /*
+            case R.id.menu_search_local_map:
+                if (mSearchWrapperView != null) {
+                    mSearchWrapperView.setVisibility(View.VISIBLE);
+                    mSearchOnLocalMap = true;
+                }
+
+                return true;
+            */
+
+            case R.id.menu_search_remote_map:
+                if (mSearchWrapperView != null) {
+                    mSearchWrapperView.setVisibility(View.VISIBLE);
+                    mSearchOnLocalMap = false;
+                }
+
                 return true;
 
             default:
@@ -554,6 +587,44 @@ public class MapsFragment extends Fragment
         LocalMapFragment mapViewLocalFragment = (LocalMapFragment) getChildFragmentManager()
                 .findFragmentById(R.id.fragment_map_local);
         mapViewLocalFragment.getMapAsync(mapViewLocalFragment);
+
+
+        // Setup search widget
+        mSearchWrapperView = (CardView) getView().findViewById(R.id.search_wrapper_view);
+        mSearchFragment = (SupportPlaceAutocompleteFragment) getChildFragmentManager()
+                .findFragmentById(R.id.search_autocomplete_fragment);
+        mSearchFragment.setOnPlaceSelectedListener(new PlaceSelectionListener() {
+            @Override
+            public void onPlaceSelected(Place place) {
+
+                String placeDetailsStr = place.getName() + "\n"
+                        + place.getId() + "\n"
+                        + place.getLatLng().toString() + "\n"
+                        + place.getAddress() + "\n"
+                        + place.getAttributions();
+                Log.i(TAG, "Found: " + placeDetailsStr);
+
+                if (mSearchOnLocalMap) {
+                    mLocalMap.animateCamera(CameraUpdateFactory.newLatLngZoom(
+                            place.getLatLng(), 12
+                    ));
+                } else {
+                    mRemoteMap.animateCamera(CameraUpdateFactory.newLatLngZoom(
+                            place.getLatLng(), 12
+                    ));
+                }
+
+                mSearchWrapperView.setVisibility(View.GONE);
+
+            }
+
+            @Override
+            public void onError(Status status) {
+                // TODO: Handle the error.
+                Log.i(TAG, "An error occurred: " + status);
+            }
+        });
+
     }
 
     /**

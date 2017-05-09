@@ -22,4 +22,10 @@
         android:icon="@android:drawable/ic_menu_delete"
         android:title="@string/menu_remove_local_markers"
         app:showAsAction="collapseActionView"/>
+
+    <item android:id="@+id/menu_search_remote_map"
+        android:icon="@android:drawable/ic_menu_search"
+        android:title="@string/menu_search_remote_map"
+        app:showAsAction="collapseActionView"/>
+
 </menu>

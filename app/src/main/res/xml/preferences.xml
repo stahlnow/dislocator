@@ -15,4 +15,7 @@
         android:title="@string/pref_sync_zoom_level"
         android:summary="@string/pref_sync_zoom_level_summary"
         android:defaultValue="false" />
+    <Preference android:title="@string/legal_notices"
+        android:key="@string/legal_notices"
+        android:summary="Open Source Software License Info"/>
 </PreferenceScreen>

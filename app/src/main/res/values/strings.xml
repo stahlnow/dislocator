@@ -69,5 +69,12 @@
     <string name="legal_notices">Legal Notices</string>
     <string name="button_close">Close</string>
     <string name="tag_fragment_google_license_dialog">tag_fragment_google_license_dialog</string>
+    <string name="import_remote_markers_from_goole_drive">Google Drive</string>
+    <string name="import_local_markers_from_google_drive">Google Drive</string>
+    <string name="import_markers_from_goole_drive">Google Drive</string>
+    <string name="import_to_both_maps">remote and local map</string>
+    <string name="import_from_sd_card">Import from SD Card (/sdcard/Dislocator)</string>
+    <string name="import_from_google_drive">Import from Google Drive</string>
+    <string name="select_map_for_import_dialog_title">Select map</string>
 
 </resources>

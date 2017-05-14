@@ -1,68 +1,74 @@
 package com.stahlnow.android.dislocator;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.IntentSender;
+import android.content.pm.PackageManager;
 import android.content.res.AssetManager;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentTransaction;
+import android.support.v4.content.ContextCompat;
+import android.support.v7.app.AlertDialog;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ListView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.drive.Drive;
-import com.google.android.gms.drive.DriveApi;
-import com.google.android.gms.drive.DriveContents;
-import com.google.android.gms.drive.DriveFile;
 import com.google.android.gms.drive.DriveId;
 import com.google.android.gms.drive.OpenFileActivityBuilder;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.channels.FileChannel;
+import java.util.ArrayList;
+import java.util.List;
 
 import static android.app.Activity.RESULT_OK;
 
 
 public class ImportFragment extends Fragment implements
         GoogleApiClient.OnConnectionFailedListener,
-        GoogleApiClient.ConnectionCallbacks
+        GoogleApiClient.ConnectionCallbacks,
+        PermissionResultListener
 {
 
     private static final String TAG = ImportFragment.class.getSimpleName();
+    private boolean mStorageAccessGranted = false;
 
-    private ListView mRemoteListView;
-    private ListView mLocalListView;
-    private ArrayAdapter<String> mRemoteListAdapter;
-    private ArrayAdapter<String> mLocalListAdapter;
+    private ListView mFileListView;
+    private ArrayAdapter<String> mFileListAdapter;
 
 
     private GoogleApiClient mGoogleApiClient;
 
-    private static final int REQUEST_CODE_OPEN_REMOTE = 1;
-    private static final int REQUEST_CODE_OPEN_LOCAL = 2;
+    private static final int REQUEST_CODE_OPEN_FROM_DRIVE = 1;
+    private static final int REQUEST_CODE_OPEN_FROM_SDCARD = 2;
     /**
      * Request code for auto Google Play Services error resolution.
      */
     protected static final int REQUEST_CODE_RESOLUTION = 1;
-    private String mLocalDriveId = null;
-    private String mRemoteDriveId = null;
 
 
     @Override
@@ -129,8 +135,8 @@ public class ImportFragment extends Fragment implements
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View v = inflater.inflate(R.layout.fragment_import,container,false);
 
-        Button btnImportRemoteMarkers = (Button)v.findViewById(R.id.btn_import_remote_markers);
-        btnImportRemoteMarkers.setOnClickListener(new View.OnClickListener() {
+        Button btnImportMarkers = (Button)v.findViewById(R.id.btn_import_markers);
+        btnImportMarkers.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (mGoogleApiClient.isConnected()) {
@@ -139,7 +145,7 @@ public class ImportFragment extends Fragment implements
                             .setMimeType(new String[]{"application/vnd.google-earth.kml+xml", "application/vnd.google-earth.kmz"})
                             .build(mGoogleApiClient);
                     try {
-                        getActivity().startIntentSenderForResult(intentSender, REQUEST_CODE_OPEN_REMOTE, null, 0, 0, 0);
+                        getActivity().startIntentSenderForResult(intentSender, REQUEST_CODE_OPEN_FROM_DRIVE, null, 0, 0, 0);
                     } catch (IntentSender.SendIntentException e) {
                         Log.w(TAG, "Unable to send intent", e);
                     }
@@ -147,36 +153,44 @@ public class ImportFragment extends Fragment implements
             }
         });
 
-        Button btnImportLocalMarkers = (Button)v.findViewById(R.id.btn_import_local_markers);
-        btnImportLocalMarkers.setOnClickListener(new View.OnClickListener() {
+
+
+        mFileListView = (ListView) v.findViewById(R.id.import_file_list);
+
+
+        if (askForPermission()) // ask for storage permission
+        {
+            getFiles();
+        }
+
+        mFileListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
-            public void onClick(View v) {
-                if (mGoogleApiClient.isConnected()) {
-                    IntentSender intentSender = Drive.DriveApi
-                            .newOpenFileActivityBuilder()
-                            .setMimeType(new String[]{"application/vnd.google-earth.kml+xml", "application/vnd.google-earth.kmz"})
-                            .build(mGoogleApiClient);
-                    try {
-                        getActivity().startIntentSenderForResult(intentSender, REQUEST_CODE_OPEN_LOCAL, null, 0, 0, 0);
-                    } catch (IntentSender.SendIntentException e) {
-                        Log.w(TAG, "Unable to send intent", e);
-                    }
-                }
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                TextView v = (TextView)view.findViewById(R.id.list_item);
+                String filename = v.getText().toString();
+                Intent data = new Intent();
+                data.putExtra("filename", filename);
+                onActivityResult(REQUEST_CODE_OPEN_FROM_SDCARD, RESULT_OK, data);
+
             }
         });
 
-        /*
-        mRemoteListView = (ListView) v.findViewById(R.id.import_remote_list);
-        mLocalListView = (ListView) v.findViewById(R.id.import_local_list);
+        return v;
+    }
 
-        List<String> remote_file_list = new ArrayList<String>();
-        List<String> local_file_list = new ArrayList<String>();
+    private void getFiles() {
+
+        List<String> file_list = new ArrayList<String>();
 
         // copy assets to internal storage files
-        copyAssets("kml");
+        // copyAssets("kml");
 
         // add all files from internal storage
-        File dir = new File(getActivity().getFilesDir(), "/"); // "/" -> could be subdir instead of root
+        File dir = new File(Environment.getExternalStorageDirectory(), "Dislocator"); // "/" -> could be subdir instead of root
+
+        // create directory, if it doesn't exist yet
+        // this would need WRITE permission, not implemented atm
+        //if (dir.mkdirs()) { Log.d(TAG, "created directory."); }
 
         File files[] = dir.listFiles(new FilenameFilter() {
             @Override
@@ -185,82 +199,112 @@ public class ImportFragment extends Fragment implements
             }
         });
 
-        for (File f : files) {
-            remote_file_list.add(f.getName());
-            local_file_list.add(f.getName());
+        if (files != null) {
+            for (File f : files) {
+                file_list.add(f.getName());
+            }
         }
 
-        mRemoteListAdapter = new ArrayAdapter<String>(getActivity(), R.layout.list_item, remote_file_list);
-        mLocalListAdapter = new ArrayAdapter<String>(getActivity(), R.layout.list_item, local_file_list);
-        mRemoteListView.setAdapter(mRemoteListAdapter);
-        mLocalListView.setAdapter(mLocalListAdapter);
-
-        mRemoteListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-
-                TextView v = (TextView)view.findViewById(R.id.list_item);
-                String filename = v.getText().toString();
-                //String path = "kml" + File.separatorChar + filename;
-
-                SharedPreferences sharedPref = getActivity().getPreferences(DislocatorApplication.getAppContext().MODE_PRIVATE);
-                SharedPreferences.Editor editor = sharedPref.edit();
-                editor.putString(getResources().getString(R.string.load_remote), filename);
-                editor.commit();
-                openMap();
-            }
-        });
-
-        mLocalListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-
-                TextView v = (TextView)view.findViewById(R.id.list_item);
-                String filename = v.getText().toString();
-                //String path = "kml" + File.separatorChar + filename;
-
-                SharedPreferences sharedPref = getActivity().getPreferences(DislocatorApplication.getAppContext().MODE_PRIVATE);
-                SharedPreferences.Editor editor = sharedPref.edit();
-                editor.putString(getResources().getString(R.string.load_local), filename);
-                editor.commit();
-                openMap();
-            }
-        });
-
-        */
-
-        return v;
+        mFileListAdapter = new ArrayAdapter<String>(getActivity(), R.layout.list_item, file_list);
+        mFileListView.setAdapter(mFileListAdapter);
     }
 
+    private boolean askForPermission() {
+        Activity activity = getActivity();
+        if (activity != null && activity instanceof DislocatorActivity) {
+            DislocatorActivity mainActivity = (DislocatorActivity) activity;
+            mainActivity.setPermissionResultListener(this);
 
-    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+            // returns true if we have access
+            mStorageAccessGranted = mainActivity.requestPermission(Manifest.permission.READ_EXTERNAL_STORAGE, DislocatorApplication.REQUEST_READ_EXTERNAL_STORAGE);
+            return mStorageAccessGranted;
+        }
+        return false;
+    }
 
-        DislocatorActivity activity = (DislocatorActivity)getActivity();
+    @Override
+    public void onPermissionResult(int requestCode, String[] permissions, int[] grantResults) {
+        switch (requestCode) {
+            case DislocatorApplication.REQUEST_READ_EXTERNAL_STORAGE:
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    Log.d(TAG, "onPermissionResult");
+                    mStorageAccessGranted = true;
+
+                    getFiles();
+                    //mFileListAdapter.notifyDataSetChanged();
+                }
+                break;
+        }
+    }
+
+    public void onActivityResult(int requestCode, int resultCode, final Intent data) {
+
+        final DislocatorActivity activity = (DislocatorActivity)getActivity();
 
         switch (requestCode) {
-            case REQUEST_CODE_OPEN_LOCAL:
+
+            case REQUEST_CODE_OPEN_FROM_DRIVE:
+
                 if (resultCode == RESULT_OK) {
-
-                    activity.driveIdLocal = ((DriveId)(data.getParcelableExtra(
-                            OpenFileActivityBuilder.EXTRA_RESPONSE_DRIVE_ID))).encodeToString();
-
-                    openMap();
-                }
-                break;
-            case REQUEST_CODE_OPEN_REMOTE:
-                if (resultCode == RESULT_OK) {
-
-                    activity.driveIdRemote =
+                    activity.driveId =
                             ((DriveId)(data.getParcelableExtra(
-                            OpenFileActivityBuilder.EXTRA_RESPONSE_DRIVE_ID))).encodeToString();
-
-                    openMap();
+                                    OpenFileActivityBuilder.EXTRA_RESPONSE_DRIVE_ID))).encodeToString();
                 }
-
                 break;
+
+            case REQUEST_CODE_OPEN_FROM_SDCARD:
+                if (resultCode == RESULT_OK) {
+                    activity.sdCardFile = (String)(data.getStringExtra("filename"));
+                }
             default:
                 break;
         }
+
+
+        LayoutInflater li = LayoutInflater.from(getActivity());
+        View promptsView = li.inflate(R.layout.select_map_for_import_dialog, null);
+        AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(getActivity());
+        alertDialogBuilder
+                .setTitle(getString(R.string.select_map_for_import_dialog_title))
+                .setNegativeButton(android.R.string.cancel, null) // dismisses by default);
+                .setView(promptsView)
+                .create();
+
+        final Button btnImportToRemoteMap = (Button) promptsView.findViewById(R.id.btn_import_to_remote_map);
+        final Button btnImportToLocalMap = (Button) promptsView.findViewById(R.id.btn_import_to_local_map);
+        final Button btnImportToBothMaps = (Button) promptsView.findViewById(R.id.btn_import_to_both_maps);
+
+        final AlertDialog alertDialog = alertDialogBuilder.create();
+
+        btnImportToRemoteMap.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                activity.import_to = DislocatorActivity.IMPORT_TO.REMOTE;
+                openMap();
+                alertDialog.cancel();
+            }
+        });
+
+        btnImportToLocalMap.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                activity.import_to = DislocatorActivity.IMPORT_TO.LOCAL;
+                openMap();
+                alertDialog.cancel();
+            }
+        });
+
+        btnImportToBothMaps.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                activity.import_to = DislocatorActivity.IMPORT_TO.REMOTE_AND_LOCAL;
+                openMap();
+                alertDialog.cancel();
+            }
+        });
+
+        alertDialog.show();
+
 
 
     }

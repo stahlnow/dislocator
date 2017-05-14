@@ -11,9 +11,11 @@ import android.graphics.drawable.Drawable;
 import android.location.Location;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.os.Environment;
 import android.support.annotation.NonNull;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentTransaction;
+import android.support.v4.os.EnvironmentCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.preference.PreferenceManager;
 import android.support.v7.widget.CardView;
@@ -69,6 +71,7 @@ import com.google.maps.android.clustering.ClusterItem;
 import com.google.maps.android.clustering.ClusterManager;
 import com.google.maps.android.clustering.view.DefaultClusterRenderer;
 import com.google.maps.android.ui.IconGenerator;
+import com.stahlnow.android.dislocator.DislocatorActivity.IMPORT_TO;
 import com.stahlnow.android.dislocator.model.Bone;
 
 import org.json.JSONException;
@@ -84,8 +87,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
-
-import static android.R.attr.path;
 
 
 public class MapsFragment extends Fragment
@@ -505,7 +506,7 @@ public class MapsFragment extends Fragment
         }
 
         // stop google services: this will disconnect and stop location updates see @onConnectionSuspended
-        if (requestLocationPermission(1000)) // hack to not disconnect on permission dialog
+        if (requestLocationPermission(DislocatorApplication.REQUEST_LOCATION)) // hack to not disconnect on permission dialog
             mGoogleApiClient.stopAutoManage(getActivity()); //TODO
 
         // save markers files
@@ -707,32 +708,26 @@ public class MapsFragment extends Fragment
         };
         mLocalMap.setOnCameraMoveListener(listener);
 
+        // read markers from auto-save
+        File file = new File(DislocatorApplication.getAppContext().getFilesDir(), getResources().getString(R.string.temporary_local_file));
+
         DislocatorActivity activity = (DislocatorActivity)getActivity();
-
-        // check if we should load something
-        if (activity.driveIdLocal != null) {
-            Log.i(TAG, "Import from google drive to local map.");
-            DriveId driveId = DriveId.decodeFromString(activity.driveIdLocal);
-            DriveFile file = driveId.asDriveFile();
-            file.open(mGoogleApiClient, DriveFile.MODE_READ_ONLY, null)
-                    .setResultCallback(openLocalKml);
-            activity.driveIdLocal = null; // clear id
-        } else {
-            // read markers from auto-save
-            File file = new File(DislocatorApplication.getAppContext().getFilesDir(), getResources().getString(R.string.temporary_local_file));
+        if (activity.sdCardFile != null && (activity.import_to == IMPORT_TO.LOCAL || activity.import_to == IMPORT_TO.REMOTE_AND_LOCAL)) {
+            file = new File(Environment.getExternalStorageDirectory(), "Dislocator/" + activity.sdCardFile);
+            Log.d(TAG, file.toString());
+        }
+        try {
+            FileInputStream fi = new FileInputStream(file);
             try {
-                FileInputStream fi = new FileInputStream(file);
-                try {
-                    readKMLItems(fi, mLocalMap, mLocalClusterManager);
-                } catch (IOException e) {
-                    Log.e(TAG, "Can't read file: " + file.getPath());
-                } catch (XmlPullParserException e) {
-                    Log.e(TAG, "KML file could not be parsed: " + e.toString());
-                }
-
-            } catch (FileNotFoundException e) {
-                Log.w(TAG, e.toString());
+                readKMLItems(fi, mLocalMap, mLocalClusterManager);
+            } catch (IOException e) {
+                Log.e(TAG, "Can't read file: " + file.getPath());
+            } catch (XmlPullParserException e) {
+                Log.e(TAG, "KML file could not be parsed: " + e.toString());
             }
+
+        } catch (FileNotFoundException e) {
+            Log.w(TAG, e.toString());
         }
 
 
@@ -760,70 +755,6 @@ public class MapsFragment extends Fragment
         onMapsReady();
     }
 
-    private void onMapsReady() {
-        if (mLocalMap == null || mRemoteMap == null)
-            return;
-
-        // ask for location access
-        if (requestLocationPermission(1000)) {
-
-            createLocationRequest();
-            startLocationUpdates();
-
-            enableMyLocationLocalMap();
-            enableMyLocationRemoteMap();
-
-        }
-
-    }
-
-    ResultCallback<DriveApi.DriveContentsResult> openLocalKml =
-            new ResultCallback<DriveApi.DriveContentsResult>() {
-                @Override
-                public void onResult(@NonNull DriveApi.DriveContentsResult driveContentsResult) {
-                    if (!driveContentsResult.getStatus().isSuccess()) {
-                        Toast.makeText(getContext(), getString(R.string.cannot_open_file), Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    DriveContents contents = driveContentsResult.getDriveContents();
-                    try {
-                        readKMLItems(contents.getInputStream(), mLocalMap, mLocalClusterManager);
-
-                        // animate camera to cluster (does nothing if empty cluster)
-                        animateCameraToCluster(mLocalClusterManager, mLocalMap);
-
-                    } catch (FileNotFoundException e) {
-                        Log.w(TAG, e.toString());
-                    } catch (IOException e) {
-                        Log.e(TAG, e.toString());
-                    } catch (XmlPullParserException e) {
-                        Log.e(TAG, e.toString());
-                    }
-                }
-            };
-
-
-
-    @Override
-    public void onStreetViewPanoramaReady(StreetViewPanorama streetViewPanorama) {
-        LatLng pos = null;
-        if (mStreetViewActiveLocal) {
-            pos = new LatLng(mLocalMap.getCameraPosition().target.latitude, mLocalMap.getCameraPosition().target.longitude);
-            // zoom back 1 level on map so buttons work correctly
-            mLocalMap.moveCamera(CameraUpdateFactory.newLatLngZoom(
-                    pos,
-                    mLocalMap.getCameraPosition().zoom - 1));
-        }
-        else {
-            pos = new LatLng(mRemoteMap.getCameraPosition().target.latitude, mRemoteMap.getCameraPosition().target.longitude);
-            // zoom back 1 level on map so buttons work correctly
-            mRemoteMap.moveCamera(CameraUpdateFactory.newLatLngZoom(
-                    pos,
-                    mRemoteMap.getCameraPosition().zoom - 1));
-        }
-
-        streetViewPanorama.setPosition(pos);
-    }
 
     public void remoteMapReady(GoogleMap map) {
 
@@ -884,36 +815,27 @@ public class MapsFragment extends Fragment
 
         mRemoteMap.setOnMapLongClickListener(mRemoteMapClickListener);
 
-
         // check if we should load something
+        // read markers from auto-save
+        File file = new File(DislocatorApplication.getAppContext().getFilesDir(), getResources().getString(R.string.temporary_remote_file));
         DislocatorActivity activity = (DislocatorActivity)getActivity();
-
-        // check if we should load something
-        if (activity.driveIdRemote != null) {
-            Log.i(TAG, "Import from google drive to remote map.");
-            DriveId driveId = DriveId.decodeFromString(activity.driveIdRemote);
-            DriveFile file = driveId.asDriveFile();
-            file.open(mGoogleApiClient, DriveFile.MODE_READ_ONLY, null)
-                    .setResultCallback(openRemoteKml);
-            activity.driveIdRemote = null; // clear id
-        } else {
-            // read markers from auto-save
-            File file = new File(DislocatorApplication.getAppContext().getFilesDir(), getResources().getString(R.string.temporary_remote_file));
-            try {
-                FileInputStream fi = new FileInputStream(file);
-                try {
-                    readKMLItems(fi, mRemoteMap, mRemoteClusterManager);
-                } catch (IOException e) {
-                    Log.e(TAG, "Can't read file: " + file.getPath());
-                } catch (XmlPullParserException e) {
-                    Log.e(TAG, "KML file could not be parsed: " + e.toString());
-                }
-
-            } catch (FileNotFoundException e) {
-                Log.w(TAG, e.toString());
-            }
+        if (activity.sdCardFile != null && (activity.import_to == IMPORT_TO.REMOTE || activity.import_to == IMPORT_TO.REMOTE_AND_LOCAL)) {
+            file = new File(Environment.getExternalStorageDirectory(), "Dislocator/" + activity.sdCardFile);
+            Log.d(TAG, file.toString());
         }
+        try {
+            FileInputStream fi = new FileInputStream(file);
+            try {
+                readKMLItems(fi, mRemoteMap, mRemoteClusterManager);
+            } catch (IOException e) {
+                Log.e(TAG, "Can't read file: " + file.getPath());
+            } catch (XmlPullParserException e) {
+                Log.e(TAG, "KML file could not be parsed: " + e.toString());
+            }
 
+        } catch (FileNotFoundException e) {
+            Log.w(TAG, e.toString());
+        }
 
         // restore reference marker
         LatLng loc = getRemoteReferenceLatLng();
@@ -941,6 +863,77 @@ public class MapsFragment extends Fragment
         onMapsReady();
     }
 
+    private void onMapsReady() {
+        if (mLocalMap == null || mRemoteMap == null)
+            return;
+
+        // ask for location access
+        if (requestLocationPermission(DislocatorApplication.REQUEST_LOCATION)) {
+            createLocationRequest();
+            startLocationUpdates();
+            enableMyLocationLocalMap();
+            enableMyLocationRemoteMap();
+        }
+
+        // check if we should load something
+        DislocatorActivity activity = (DislocatorActivity)getActivity();
+        if (activity.driveId != null) {
+            Log.i(TAG, "Import from google drive map.");
+            DriveId driveId = DriveId.decodeFromString(activity.driveId);
+            DriveFile file = driveId.asDriveFile();
+            switch (activity.import_to) {
+                case REMOTE:
+                    file.open(mGoogleApiClient, DriveFile.MODE_READ_ONLY, null)
+                            .setResultCallback(openRemoteKml);
+                    activity.driveId = null; // clear id
+                    break;
+                case LOCAL:
+                    file.open(mGoogleApiClient, DriveFile.MODE_READ_ONLY, null)
+                            .setResultCallback(openLocalKml);
+                    activity.driveId = null; // clear id
+                    break;
+                case REMOTE_AND_LOCAL:
+                    file.open(mGoogleApiClient, DriveFile.MODE_READ_ONLY, null)
+                            .setResultCallback(openRemoteAndLocalKml);
+                    activity.driveId = null; // clear id
+                    break;
+            }
+        }
+
+
+        if (activity.sdCardFile != null) { // if we just imported something
+            if (activity.import_to == IMPORT_TO.REMOTE || activity.import_to == IMPORT_TO.REMOTE_AND_LOCAL)
+                animateCameraToCluster(mRemoteClusterManager, mRemoteMap);
+            if (activity.import_to == IMPORT_TO.LOCAL || activity.import_to == IMPORT_TO.REMOTE_AND_LOCAL)
+                animateCameraToCluster(mLocalClusterManager, mLocalMap);
+            // reset sd card pointer
+            activity.sdCardFile = null;
+        }
+
+    }
+
+    ResultCallback<DriveApi.DriveContentsResult> openLocalKml =
+            new ResultCallback<DriveApi.DriveContentsResult>() {
+                @Override
+                public void onResult(@NonNull DriveApi.DriveContentsResult driveContentsResult) {
+                    if (!driveContentsResult.getStatus().isSuccess()) {
+                        Toast.makeText(getContext(), getString(R.string.cannot_open_file), Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    DriveContents contents = driveContentsResult.getDriveContents();
+                    try {
+                        readKMLItems(contents.getInputStream(), mLocalMap, mLocalClusterManager);
+                        animateCameraToCluster(mLocalClusterManager, mLocalMap); // animate camera to cluster (does nothing if empty cluster)
+                    } catch (FileNotFoundException e) {
+                        Log.w(TAG, e.toString());
+                    } catch (IOException e) {
+                        Log.e(TAG, e.toString());
+                    } catch (XmlPullParserException e) {
+                        Log.e(TAG, e.toString());
+                    }
+                }
+            };
+
     ResultCallback<DriveApi.DriveContentsResult> openRemoteKml =
             new ResultCallback<DriveApi.DriveContentsResult>() {
                 @Override
@@ -952,10 +945,7 @@ public class MapsFragment extends Fragment
                     DriveContents contents = driveContentsResult.getDriveContents();
                     try {
                         readKMLItems(contents.getInputStream(), mRemoteMap, mRemoteClusterManager);
-
-                        // animate to cluster (this checks if there are markers)
-                        animateCameraToCluster(mRemoteClusterManager, mRemoteMap);
-
+                        animateCameraToCluster(mRemoteClusterManager, mRemoteMap); // animate to cluster (this checks if there are markers)
                     } catch (FileNotFoundException e) {
                         Log.w(TAG, e.toString());
                     } catch (IOException e) {
@@ -966,6 +956,52 @@ public class MapsFragment extends Fragment
                 }
             };
 
+    ResultCallback<DriveApi.DriveContentsResult> openRemoteAndLocalKml =
+            new ResultCallback<DriveApi.DriveContentsResult>() {
+                @Override
+                public void onResult(@NonNull DriveApi.DriveContentsResult driveContentsResult) {
+                    if (!driveContentsResult.getStatus().isSuccess()) {
+                        Toast.makeText(getContext(), getString(R.string.cannot_open_file), Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    DriveContents contents = driveContentsResult.getDriveContents();
+                    InputStream is = contents.getInputStream();
+                    try {
+                        readKMLItems(is, mRemoteMap, mRemoteClusterManager);
+                        animateCameraToCluster(mRemoteClusterManager, mRemoteMap); // animate to cluster (this checks if there are markers)
+                        readKMLItems(is, mLocalMap, mLocalClusterManager);
+                        animateCameraToCluster(mLocalClusterManager, mLocalMap); // animate camera to cluster (does nothing if empty cluster)
+                    } catch (FileNotFoundException e) {
+                        Log.w(TAG, e.toString());
+                    } catch (IOException e) {
+                        Log.e(TAG, e.toString());
+                    } catch (XmlPullParserException e) {
+                        Log.e(TAG, e.toString());
+                    }
+                }
+            };
+
+
+    @Override
+    public void onStreetViewPanoramaReady(StreetViewPanorama streetViewPanorama) {
+        LatLng pos = null;
+        if (mStreetViewActiveLocal) {
+            pos = new LatLng(mLocalMap.getCameraPosition().target.latitude, mLocalMap.getCameraPosition().target.longitude);
+            // zoom back 1 level on map so buttons work correctly
+            mLocalMap.moveCamera(CameraUpdateFactory.newLatLngZoom(
+                    pos,
+                    mLocalMap.getCameraPosition().zoom - 1));
+        }
+        else {
+            pos = new LatLng(mRemoteMap.getCameraPosition().target.latitude, mRemoteMap.getCameraPosition().target.longitude);
+            // zoom back 1 level on map so buttons work correctly
+            mRemoteMap.moveCamera(CameraUpdateFactory.newLatLngZoom(
+                    pos,
+                    mRemoteMap.getCameraPosition().zoom - 1));
+        }
+
+        streetViewPanorama.setPosition(pos);
+    }
 
 
     private void enterStreetView(int map_fragment_id, boolean onLocalMap) {
@@ -1470,31 +1506,15 @@ public class MapsFragment extends Fragment
 
     @Override
     public void onPermissionResult(int requestCode, String[] permissions, int[] grantResults) {
-
-        if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            Log.d(TAG, "onPermissionResult");
-
-            mLocationAccessGranted = true;
-            onMapsReady();
-
-        }
-
-        /*
         switch (requestCode) {
-            case 1: { // local map
-                // If request is cancelled, the result arrays are empty.
+            case DislocatorApplication.REQUEST_LOCATION:
                 if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    enableMyLocationLocalMap();
+                    Log.d(TAG, "onPermissionResult");
+                    mLocationAccessGranted = true;
+                    onMapsReady();
                 }
-            }
-            case 2: { // remote map
-                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    enableMyLocationRemoteMap();
-                }
-            }
+                break;
         }
-        */
-
     }
 
     // SharedPreferences Helper

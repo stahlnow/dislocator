@@ -18,6 +18,9 @@ public class DislocatorApplication extends Application {
         return DislocatorApplication.context;
     }
 
+    public static final int REQUEST_LOCATION = 1;
+    public static final int REQUEST_READ_EXTERNAL_STORAGE = 2;
+
     public static boolean isNetworkAvailable() {
         ConnectivityManager connectivityManager
                 = (ConnectivityManager) context.getSystemService(CONNECTIVITY_SERVICE);

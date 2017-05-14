@@ -1,50 +1,37 @@
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:weightSum="2"
-    >
+    android:weightSum="1">
 
-    <Button
-        android:id="@+id/btn_import_remote_markers"
+    <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/import_remote_markers" />
-
-    <Space
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_weight = "1" />
-
-    <!--
-    <ListView
-        android:id="@+id/import_remote_list"
-        android:layout_width="fill_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        />
-    -->
-
+        android:background="@color/colorNavigationBackground"
+        android:text="@string/import_from_google_drive"
+        android:textAlignment="center"
+        android:textColor="@color/colorForeground" />
 
     <Button
-        android:id="@+id/btn_import_local_markers"
+        android:id="@+id/btn_import_markers"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/import_local_markers" />
+        android:text="@string/import_markers_from_goole_drive" />
 
-    <Space
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_weight = "1" />
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/colorNavigationBackground"
+        android:text="@string/import_from_sd_card"
+        android:textAlignment="center"
+        android:textColor="@color/colorForeground" />
 
-    <!--
     <ListView
-        android:id="@+id/import_local_list"
+        android:id="@+id/import_file_list"
         android:layout_width="fill_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
+        android:layout_height="wrap_content"
         />
-    -->
 
 </LinearLayout>

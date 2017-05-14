@@ -37,12 +37,23 @@ public class DislocatorActivity extends AppCompatActivity  {
     public Bundle mSettings;
     public String driveIdLocal = null;
     public String driveIdRemote = null;
+    public String driveId = null;
+    public String sdCardFile = null;
+
+    public static enum IMPORT_TO {
+        REMOTE, LOCAL, REMOTE_AND_LOCAL
+    }
+
+    IMPORT_TO import_to;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         mSettings = new Bundle();
+
+        import_to = IMPORT_TO.LOCAL;
 
         PreferenceManager.setDefaultValues(this, R.xml.preferences, false);
 

@@ -182,15 +182,30 @@ public class ImportFragment extends Fragment implements
 
         List<String> file_list = new ArrayList<String>();
 
-        // copy assets to internal storage files
-        // copyAssets("kml");
-
         // add all files from internal storage
-        File dir = new File(Environment.getExternalStorageDirectory(), "Dislocator"); // "/" -> could be subdir instead of root
+        File dir = new File(Environment.getExternalStorageDirectory(), "/Dislocator"); // "/" -> could be subdir instead of root
 
-        // create directory, if it doesn't exist yet
-        // this would need WRITE permission, not implemented atm
-        //if (dir.mkdirs()) { Log.d(TAG, "created directory."); }
+        // create directory, if it doesn't exist yet and copy assets
+
+        boolean success = false;
+        if (!dir.exists()) {
+            success = dir.mkdirs();
+        }
+        if (success) {
+            Log.e(TAG, "created directory: " + dir.getAbsoluteFile());
+            // copy assets to internal storage files
+            copyAssets("kml");
+        } else {
+            String state = Environment.getExternalStorageState();
+            Log.e(TAG, "Error creating directory" + dir.getAbsolutePath());
+            if (!Environment.MEDIA_MOUNTED.equals(state)){
+                Log.e(TAG, "Error: external storage is unavailable");
+            }
+            if (Environment.MEDIA_MOUNTED_READ_ONLY.equals(state)) {
+                Log.e(TAG, "Error: external storage is read only.");
+            }
+        }
+
 
         File files[] = dir.listFiles(new FilenameFilter() {
             @Override
@@ -216,7 +231,7 @@ public class ImportFragment extends Fragment implements
             mainActivity.setPermissionResultListener(this);
 
             // returns true if we have access
-            mStorageAccessGranted = mainActivity.requestPermission(Manifest.permission.READ_EXTERNAL_STORAGE, DislocatorApplication.REQUEST_READ_EXTERNAL_STORAGE);
+            mStorageAccessGranted = mainActivity.requestPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, DislocatorApplication.REQUEST_WRITE_EXTERNAL_STORAGE);
             return mStorageAccessGranted;
         }
         return false;
@@ -225,7 +240,7 @@ public class ImportFragment extends Fragment implements
     @Override
     public void onPermissionResult(int requestCode, String[] permissions, int[] grantResults) {
         switch (requestCode) {
-            case DislocatorApplication.REQUEST_READ_EXTERNAL_STORAGE:
+            case DislocatorApplication.REQUEST_WRITE_EXTERNAL_STORAGE:
                 if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     Log.d(TAG, "onPermissionResult");
                     mStorageAccessGranted = true;
@@ -334,7 +349,8 @@ public class ImportFragment extends Fragment implements
             OutputStream out = null;
             try {
                 in = assetManager.open(dir + File.separatorChar + filename);
-                File outFile = new File(getActivity().getFilesDir(), filename);
+                File dst = new File(Environment.getExternalStorageDirectory(), "/Dislocator");
+                File outFile = new File(dst, filename);
                 out = new FileOutputStream(outFile);
                 copyFileInputStream(in, out);
                 in.close();

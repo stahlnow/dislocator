@@ -19,7 +19,7 @@ public class DislocatorApplication extends Application {
     }
 
     public static final int REQUEST_LOCATION = 1;
-    public static final int REQUEST_READ_EXTERNAL_STORAGE = 2;
+    public static final int REQUEST_WRITE_EXTERNAL_STORAGE = 2;
 
     public static boolean isNetworkAvailable() {
         ConnectivityManager connectivityManager
